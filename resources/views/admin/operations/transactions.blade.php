@@ -1,128 +1,138 @@
-    @extends('layouts.home')
-    @section('title','Transactions')
+@extends('layouts.home')
 
-    @section('content')
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+@section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <div class="container-xxl flex-grow-1 container-p-y">
-    <h4 class="fw-bold py-3 mb-4">Transactions</h4>
+<div class="container-xxl flex-grow-1 container-p-y">
+<h4 class="fw-bold py-0 mb-2">Transactions</h4>
 
-    @if(session('status'))
-        <div class="alert alert-success">{{ session('status') }}</div>
-    @endif
-
-    <div class="card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Transaction List</h5>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddTransaction">
-            <i class="bx bx-plus"></i> Add Transaction
-        </button>
+@if(session('status'))
+    <div class="alert alert-success">{{ session('status') }}</div>
+@endif
+<style>
+    .swal2-container{ z-index:20000 !important; }
+</style>
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3" style="min-width:400px">
+            <h5 class="mb-0">Transaction List</h5>
         </div>
 
-        <div class="card-body table-responsive">
-        <table class="table table-striped table-hover align-middle" id="transactionsTable">
-            <thead class="table-light">
-            <tr>
-                <th>ID</th><th>User</th><th>Warehouse</th><th>Date</th>
-                <th>Type</th><th>Status</th><th class="text-end">Total (Rp)</th>
-                <th class="text-end">Paid (Rp)</th><th class="text-end">Change (Rp)</th><th>Actions</th>
-            </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+        <div class="d-flex gap-2 align-items-center">
+            <input id="txSearchBox" class="form-control" style="min-width:280px" placeholder="Search transactions (id, user, warehouse, type)...">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddTransaction">
+                <i class="bx bx-plus"></i> Add Transaction
+            </button>
         </div>
     </div>
+
+    <div class="card-body table-responsive">
+    <table class="table table-striped table-hover align-middle" id="transactionsTable">
+        <thead class="table-light">
+        <tr>
+            <th>ID</th><th>User</th><th>Warehouse</th><th>Date</th>
+            <th>Type</th><th>Status</th><th class="text-end">Total (Rp)</th>
+            <th class="text-end">Paid (Rp)</th><th class="text-end">Change (Rp)</th><th>Actions</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    {{-- Pagination container --}}
+    <div id="transactionsPagination" class="mt-3 d-flex justify-content-center"></div>
+
+    </div>
+</div>
+</div>
+
+{{-- Modal Add Transaction --}}
+<div class="modal fade" id="modalAddTransaction" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-lg modal-dialog-centered">
+    <form id="formAddTransaction" class="modal-content" method="POST">
+    @csrf
+    <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">Add Transaction</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
     </div>
 
-    {{-- Modal Add Transaction --}}
-    <div class="modal fade" id="modalAddTransaction" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <form id="formAddTransaction" class="modal-content" method="POST">
-        @csrf
-        <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title">Add Transaction</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    <div class="modal-body">
+        <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <label class="form-label">User</label>
+            <select name="user_id" class="form-select" required>
+            <option value="">-- choose user --</option>
+            @foreach($users as $u) <option value="{{ $u->id }}">{{ $u->name }}</option> @endforeach
+            </select>
         </div>
 
-        <div class="modal-body">
-            <div class="row g-3 mb-3">
-            <div class="col-md-6">
-                <label class="form-label">User</label>
-                <select name="user_id" class="form-select" required>
-                <option value="">-- choose user --</option>
-                @foreach($users as $u) <option value="{{ $u->id }}">{{ $u->name }}</option> @endforeach
-                </select>
-            </div>
-
-            <div class="col-md-6">
-                <label class="form-label">Warehouse</label>
-                <select name="warehouse_id" class="form-select" required>
-                <option value="">-- choose warehouse --</option>
-                @foreach($warehouses as $w) <option value="{{ $w->id }}">{{ $w->warehouse_name }}</option> @endforeach
-                </select>
-            </div>
-
-            <div class="col-md-6">
-                <label class="form-label">Date</label>
-                <input type="datetime-local" name="transaction_date" class="form-control" value="{{ now()->format('Y-m-d\TH:i') }}" required>
-            </div>
-
-            <div class="col-md-6">
-                <label class="form-label">Type</label>
-                <select name="transaction_type" class="form-select" required>
-                <option value="sale">Sale</option>
-                <option value="purchase">Purchase</option>
-                </select>
-            </div>
-            </div>
-
-            <hr>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold mb-0">Transaction Details</h6>
-            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddDetail"><i class="bx bx-plus"></i> Add Product</button>
-            </div>
-
-            <div id="transactionDetailsContainer"></div>
-
-            <div class="row mt-3 g-3">
-            <div class="col-md-4">
-                <label>Grand Total (Rp)</label>
-                <input type="text" id="grandTotalDisplay" class="form-control" readonly value="0">
-                <input type="hidden" name="total" id="grandTotalInput" value="0">
-            </div>
-
-            <div class="col-md-4">
-                <label>Paid Amount (Rp)</label>
-                <input type="number" name="paid_amount" id="paidAmount" class="form-control" min="0" value="0" step="0.01">
-            </div>
-
-            <div class="col-md-4">
-                <label>Change (Rp)</label>
-                <input type="text" id="changeDisplay" class="form-control" readonly value="0">
-                <input type="hidden" name="change_amount" id="changeInput" value="0">
-            </div>
-            </div>
-
-            <div class="mt-2 text-muted small">
-            Payment method: <strong>Cash</strong>
-            </div>
+        <div class="col-md-6">
+            <label class="form-label">Warehouse</label>
+            <select name="warehouse_id" class="form-select" required>
+            <option value="">-- choose warehouse --</option>
+            @foreach($warehouses as $w) <option value="{{ $w->id }}">{{ $w->warehouse_name }}</option> @endforeach
+            </select>
         </div>
 
-        <div class="modal-footer">
-            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
-            <button class="btn btn-primary" type="submit">Save Transaction</button>
+        <div class="col-md-6">
+            <label class="form-label">Date</label>
+            <input type="datetime-local" name="transaction_date" class="form-control" value="{{ now()->format('Y-m-d\TH:i') }}" required>
         </div>
-        </form>
+
+        <div class="col-md-6">
+            <label class="form-label">Type</label>
+            <select name="transaction_type" class="form-select" required>
+            <option value="sale">Sale</option>
+            <option value="purchase">Purchase</option>
+            </select>
+        </div>
+        </div>
+
+        <hr>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="fw-bold mb-0">Transaction Details</h6>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddDetail"><i class="bx bx-plus"></i> Add Product</button>
+        </div>
+
+        <div id="transactionDetailsContainer"></div>
+
+        <div class="row mt-3 g-3">
+        <div class="col-md-4">
+            <label>Grand Total (Rp)</label>
+            <input type="text" id="grandTotalDisplay" class="form-control" readonly value="0">
+            <input type="hidden" name="total" id="grandTotalInput" value="0">
+        </div>
+
+        <div class="col-md-4">
+            <label>Paid Amount (Rp)</label>
+            <input type="number" name="paid_amount" id="paidAmount" class="form-control" min="0" value="0" step="0.01">
+        </div>
+
+        <div class="col-md-4">
+            <label>Change (Rp)</label>
+            <input type="text" id="changeDisplay" class="form-control" readonly value="0">
+            <input type="hidden" name="change_amount" id="changeInput" value="0">
+        </div>
+        </div>
+
+        <div class="mt-2 text-muted small">
+        Payment method: <strong>Cash</strong>
+        </div>
     </div>
+
+    <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Close</button>
+        <button class="btn btn-primary" type="submit">Save Transaction</button>
     </div>
-    @endsection
+    </form>
+</div>
+</div>
+@endsection
 
-    @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <script>
-    $(function(){
-    // products (controller must pass selling_price)
+<script>
+$(function(){
     const products = @json($products->map(function($p){
         return ['id' => $p->id, 'product_name' => $p->product_name, 'price' => (float) ($p->selling_price ?? 0)];
     })->values()->toArray());
@@ -136,12 +146,13 @@
     const $paidAmount = $('#paidAmount');
     const $changeDisplay = $('#changeDisplay');
     const $changeInput = $('#changeInput');
+    const $pagination = $('#transactionsPagination');
+    const $searchBox = $('#txSearchBox');
 
     function formatID(n){ return Number(n||0).toLocaleString('id-ID'); }
-
     function buildOptions(){
         return products.map(function(p){
-        return '<option value="'+p.id+'" data-price="'+p.price+'">'+(p.product_name||'')+'</option>';
+            return '<option value="'+p.id+'" data-price="'+p.price+'">'+(p.product_name||'')+'</option>';
         }).join('');
     }
 
@@ -210,7 +221,7 @@
     function updateGrand(){
         var total = 0;
         $container.find('.detailRow').each(function(){
-        total += parseFloat($(this).find('.subtotal').val() || 0);
+            total += parseFloat($(this).find('.subtotal').val() || 0);
         });
         $grandDisplay.val('Rp ' + formatID(total));
         $grandInput.val(total);
@@ -227,19 +238,50 @@
 
     $paidAmount.on('input', updateChange);
 
-    function fetchTransactions(){
-        $tbody.html('<tr><td colspan="10" class="text-center text-muted">Loading...</td></tr>');
-        $.get('{{ route("transactions.json") }}')
-        .done(function(res){
-            var rows = [];
-            if(res && res.data) rows = res.data;
-            else if(Array.isArray(res)) rows = res;
-            if(!rows.length){
+    /* ====== TRANSACTIONS LIST + PAGINATION + SEARCH (AJAX) ====== */
+    const listUrl = @json(route('transactions.json'));
+
+    function enhancePagination(container){
+        if(!container || !container.length) return;
+        container.find('a').each(function(){
+            var $a = $(this);
+            if ($a.data('page')) {
+                $a.addClass('transactions-page-link');
+                return;
+            }
+            try {
+                var href = $a.attr('href');
+                var search = new URL(href, window.location.origin).searchParams;
+                var p = search.get('page') || 1;
+                $a.data('page', p);
+                $a.addClass('transactions-page-link');
+            } catch(e){
+                // ignore
+            }
+        });
+        attachPageHandlers(container);
+    }
+
+    function attachPageHandlers(container){
+        container.find('a.transactions-page-link').each(function(){
+            var $a = $(this);
+            if ($a.data('_bound')) return;
+            $a.data('_bound', 1);
+            $a.on('click', function(ev){
+                ev.preventDefault();
+                var p = $(this).data('page') || 1;
+                fetchTransactions(p, $searchBox.val().trim());
+            });
+        });
+    }
+
+    function renderRows(rows){
+        if(!rows || !rows.length){
             $tbody.html('<tr><td colspan="10" class="text-center text-muted">No transactions</td></tr>');
             return;
-            }
-            var html = '';
-            rows.forEach(function(t){
+        }
+        var html = '';
+        rows.forEach(function(t){
             var badge = (t.status === 'completed') ? '<span class="badge bg-success">Completed</span>' : '<span class="badge bg-warning text-dark">Pending</span>';
             var approveBtn = '';
             if(t.transaction_type === 'purchase' && t.status === 'pending'){
@@ -257,129 +299,125 @@
                 '<td class="text-end">'+ formatID(t.change_amount || 0) +'</td>' +
                 '<td><a class="btn btn-sm btn-info" href="/transactions/'+(t.id||'')+'/details">Details</a> '+ approveBtn +'</td>' +
             '</tr>';
-            });
-            $tbody.html(html);
+        });
+        $tbody.html(html);
+    }
+
+    function fetchTransactions(page=1, q=''){
+        $tbody.html('<tr><td colspan="10" class="text-center text-muted">Loading...</td></tr>');
+        $pagination.html('');
+        $.get(listUrl, { page: page, q: q })
+        .done(function(res){
+            var rows = [];
+            if(res && res.data) rows = res.data;
+            else if(Array.isArray(res)) rows = res;
+
+            renderRows(rows);
+
+            if(res && res.pagination){
+                $pagination.html(res.pagination);
+                enhancePagination($pagination);
+            } else {
+                $pagination.html('');
+            }
         })
         .fail(function(xhr){
             console.error('fetchTransactions failed', xhr);
             $tbody.html('<tr><td colspan="10" class="text-center text-danger">Failed to load transactions</td></tr>');
         });
     }
+
+    // debounce helper
+    function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+    const doSearch = debounce(function(q){
+        fetchTransactions(1, q);
+    }, 300);
+
+    // wire search input
+    $searchBox.on('input', function(){ doSearch($(this).val().trim()); });
+
+    // initial load
     fetchTransactions();
 
-    // SUBMIT FORM: ensure modal hides first, then show SweetAlert above modal
+    // SUBMIT FORM handler
     $('#formAddTransaction').on('submit', function(e){
         e.preventDefault();
         var any = $container.find('.productSelect').toArray().some(function(s){ return s.value; });
         if(!any){
-        Swal.fire({ icon:'warning', title:'Validation', text:'Please add at least one product', confirmButtonText:'OK', allowOutsideClick:false });
-        return;
+            Swal.fire({ icon:'warning', title:'Validation', text:'Please add at least one product', confirmButtonText:'OK', allowOutsideClick:false });
+            return;
         }
         var fd = new FormData(this);
         fd.set('total', $grandInput.val());
         fd.set('change_amount', $changeInput.val());
 
-        // show a temporary loading swal but behind modal (we'll replace with final swal after modal hidden)
         Swal.fire({ title:'Saving...', html:'Please wait', allowOutsideClick:false, didOpen: ()=> Swal.showLoading() });
 
         $.ajax({
-        url: '{{ route("transactions.store") }}',
-        method: 'POST',
-        data: fd,
-        processData: false,
-        contentType: false,
-        success: function(res){
-            // close the loading swal immediately (it might be behind modal), then hide modal
-            Swal.close();
-
-            if(res && res.ok){
-            // hide modal first, then show centered swal on top when modal finished hiding
-            $('#modalAddTransaction').one('hidden.bs.modal', function(){
-                // show success swal with high z-index to ensure it's above any backdrops
-                Swal.fire({
-                icon: 'success',
-                title: 'Saved',
-                text: 'Transaction saved successfully',
-                confirmButtonText: 'OK',
-                allowOutsideClick: false,
-                didOpen: function(){
-                    // ensure SweetAlert container sits above modal backdrop
-                    var el = document.querySelector('.swal2-container');
-                    if(el) el.style.zIndex = 20000;
+            url: '{{ route("transactions.store") }}',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            success: function(res){
+                Swal.close();
+                if(res && res.ok){
+                    $('#modalAddTransaction').one('hidden.bs.modal', function(){
+                        Swal.fire({ icon:'success', title:'Saved', text:'Transaction saved successfully', confirmButtonText:'OK' })
+                        .then(function(){
+                            $container.empty();
+                            addRow();
+                            updateGrand();
+                            $paidAmount.val(0);
+                            $changeDisplay.val('Rp 0');
+                            $changeInput.val(0);
+                            fetchTransactions();
+                        });
+                    });
+                    $('#modalAddTransaction').modal('hide');
+                } else {
+                    Swal.fire({ icon:'error', title:'Save failed', text: (res && res.error) ? res.error : 'Unknown server error' });
                 }
-                }).then(function(){
-                // reset form & UI
-                $container.empty();
-                addRow();
-                updateGrand();
-                $paidAmount.val(0);
-                $changeDisplay.val('Rp 0');
-                $changeInput.val(0);
-                fetchTransactions();
-                });
-            });
-
-            // actually hide modal (this triggers the handler above)
-            $('#modalAddTransaction').modal('hide');
-
-            } else {
-            // server responded but res.ok false -> keep modal open and show error
-            Swal.fire({
-                icon: 'error',
-                title: 'Save failed',
-                text: (res && res.error) ? res.error : 'Unknown server error',
-                allowOutsideClick: false,
-                didOpen: function(){ var el = document.querySelector('.swal2-container'); if(el) el.style.zIndex = 20000; }
-            });
+            },
+            error: function(xhr){
+                Swal.close();
+                console.error(xhr);
+                Swal.fire({ icon:'error', title:'Error', text: (xhr && xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Save failed — check server logs' });
             }
-        },
-        error: function(xhr){
-            Swal.close();
-            console.error(xhr);
-            // keep modal open, show error on top
-            Swal.fire({
-            icon:'error',
-            title:'Error',
-            text: (xhr && xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Save failed — check server logs',
-            allowOutsideClick: false,
-            didOpen: function(){ var el = document.querySelector('.swal2-container'); if(el) el.style.zIndex = 20000; }
-            });
-        }
         });
     });
 
-    // Approve handler (for purchase -> pending)
+    // Approve handler
     $(document).on('click', '.btn-approve', function(){
         var id = $(this).data('id');
         Swal.fire({
-        title: 'Approve purchase?',
-        text: 'Approve this purchase and mark as completed?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, approve',
-        cancelButtonText: 'Cancel',
-        allowOutsideClick: false,
-        didOpen: function(){ var el = document.querySelector('.swal2-container'); if(el) el.style.zIndex = 20000; }
+            title: 'Approve purchase?',
+            text: 'Approve this purchase and mark as completed?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, approve',
+            cancelButtonText: 'Cancel'
         }).then(function(result){
-        if(!result.isConfirmed) return;
-        Swal.fire({ title:'Approving...', allowOutsideClick:false, didOpen: ()=> Swal.showLoading() });
+            if(!result.isConfirmed) return;
+            Swal.fire({ title:'Approving...', allowOutsideClick:false, didOpen: ()=> Swal.showLoading() });
 
-        $.post('/transactions/' + id + '/approve', {_token: $('meta[name="csrf-token"]').attr('content')})
+            $.post('/transactions/' + id + '/approve', {_token: $('meta[name="csrf-token"]').attr('content')})
             .done(function(res){
-            Swal.close();
-            if(res && res.ok){
-                Swal.fire({ icon:'success', title:'Approved', timer:1400, showConfirmButton:false }).then(fetchTransactions);
-            } else {
-                Swal.fire({ icon:'error', title:'Failed', text: res && res.error ? res.error : 'Approve failed' });
-            }
+                Swal.close();
+                if(res && res.ok){
+                    Swal.fire({ icon:'success', title:'Approved', timer:1400, showConfirmButton:false }).then(function(){ fetchTransactions(); });
+                } else {
+                    Swal.fire({ icon:'error', title:'Failed', text: res && res.error ? res.error : 'Approve failed' });
+                }
             }).fail(function(xhr){
-            Swal.close();
-            console.error(xhr);
-            Swal.fire({ icon:'error', title:'Error', text:'Approve failed' });
+                Swal.close();
+                console.error(xhr);
+                Swal.fire({ icon:'error', title:'Error', text:'Approve failed' });
             });
         });
     });
 
-    });
-    </script>
-    @endpush
+});
+</script>
+@endpush

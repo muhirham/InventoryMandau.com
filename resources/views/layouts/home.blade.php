@@ -212,11 +212,6 @@
                     <i class="menu-icon tf-icons bx bx-transfer"></i><div>Transactions</div>
                 </a>
             </li>
-            <li class="menu-item {{ request()->routeIs('transactionDetail.*') ? 'active' : '' }}">
-                <a href="{{ Route::has('transactionDetail.index') ? route('transactionDetail.index') : '#' }}" class="menu-link">
-                    <i class="menu-icon tf-icons bx bx-receipt"></i><div>Transactions Detail</div>
-                </a>
-                </li>
 
                 <li class="menu-header small text-uppercase"><span class="menu-header-text">Reports</span></li>
                 <li class="menu-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
@@ -243,7 +238,7 @@
                 <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
                 <div class="navbar-nav align-items-center">
                     <div class="nav-item d-flex align-items-center">
-                    <i class="bx bx-search fs-4 lh-0"></i>
+                    <i class="bx bx-search fs-10 lh-10"></i>
                     <input type="text" class="form-control border-0 shadow-none" placeholder="Search..." aria-label="Search..."/>
                     </div>
                 </div>
@@ -265,10 +260,8 @@
                         <div class="avatar avatar-online"><img src="{{ asset('sneat/assets/img/avatars/1.png') }}" alt class="w-px-40 h-auto rounded-circle" /></div>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="#"><div class="d-flex"><div class="flex-shrink-0 me-3"><div class="avatar avatar-online"><img src="{{ asset('sneat/assets/img/avatars/1.png') }}" class="w-px-40 h-auto rounded-circle"/></div></div><div class="flex-grow-1"><span class="fw-semibold d-block">John Doe</span><small class="text-muted">Admin</small></div></div></a></li>
+                        <li><a class="dropdown-item" href="#"><div class="d-flex"><div class="flex-shrink-0 me-3"><div class="avatar avatar-online"><img src="{{ asset('sneat/assets/img/avatars/1.png') }}" class="w-px-40 h-auto rounded-circle"/></div></div><div class="flex-grow-1"><span class="fw-semibold d-block"></span><small class="text-muted">Admin</small></div></div></a></li>
                         <li><div class="dropdown-divider"></div></li>
-                        <li><a class="dropdown-item" href="#"><i class="bx bx-user me-2"></i><span class="align-middle">My Profile</span></a></li>
-                        <li><a class="dropdown-item" href="#"><i class="bx bx-cog me-2"></i><span class="align-middle">Settings</span></a></li>
                         <li><div class="dropdown-divider"></div></li>
                         <form method="POST" action="{{ route('logout') }}">
                     @csrf
@@ -290,14 +283,9 @@
                 <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                 <div class="mb-2 mb-md-0">
                     © <script>document.write(new Date().getFullYear());</script>, made with ❤️ by
-                    <a href="https://themeselection.com" target="_blank" class="footer-link fw-bolder">ThemeSelection</a>
+                    <a href="#" target="_blank" class="footer-link fw-bolder">ThemeSelection</a>
                 </div>
-                <div>
-                    <a href="https://themeselection.com/license/" class="footer-link me-4" target="_blank">License</a>
-                    <a href="https://themeselection.com/" target="_blank" class="footer-link me-4">More Themes</a>
-                    <a href="https://themeselection.com/demo/sneat-bootstrap-html-admin-template/documentation/" target="_blank" class="footer-link me-4">Documentation</a>
-                    <a href="https://github.com/themeselection/sneat-html-admin-template-free/issues" target="_blank" class="footer-link me-4">Support</a>
-                </div>
+
                 </div>
             </footer>
             <div class="content-backdrop fade"></div>

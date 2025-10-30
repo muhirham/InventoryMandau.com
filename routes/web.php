@@ -15,6 +15,7 @@ use App\Http\Controllers\requestFormController;
 use App\Http\Controllers\Auth\Authenticate;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\AdminDsController;
 
 
 // --- LOGIN & LOGOUT ---
@@ -25,9 +26,10 @@ Route::post('/login', [LoginController::class, 'login'])->name('login.attempt');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout'); // POST logout
 
 // --- DASHBOARD ---
-Route::get('/admin/indexAdmin', function () {
-    return view('admin.indexAdmin');
-})->middleware('auth.custom:admin') ->name('admin');
+Route::get('/admin/indexAdmin', [AdminDsController::class, 'index'])->name('admin');
+Route::get('/admin/stats', [AdminDsController::class, 'stats'])->name('admin.index.stats');
+
+
 
 Route::get('/welcome', function () {
     return view('welcome');
@@ -105,11 +107,14 @@ Route::delete('/transaction-details/{detail}', [TransactionDetailController::cla
 
 
 
-Route::middleware(['auth'])->group(function(){
-    Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-    Route::post('/reports/generate', [ReportController::class, 'generate'])->name('reports.generate');
-    Route::get('/reports/{id}/export/{format}', [ReportController::class, 'export'])->name('reports.export');
-});
+
+
+Route::get('reports', [ReportController::class,'index'])->name('reports.index');
+Route::post('reports/generate', [ReportController::class,'generate'])->name('reports.generate');
+Route::get('reports/{id}/export/csv', [ReportController::class,'exportCsv'])->name('reports.export.csv');
+Route::get('reports/{id}/export/print', [ReportController::class,'exportPrintable'])->name('reports.export.print');
+
+
 
 
 /*
