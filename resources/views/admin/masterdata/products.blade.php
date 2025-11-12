@@ -1,559 +1,306 @@
 @extends('layouts.home')
 
 @section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+{{-- DataTables Responsive CSS --}}
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css"/>
+
+<style>
+        .swal2-container { z-index: 20000 !important; }
+  /* Biar tabel rapi di desktop & mobile tanpa scroll horizontal */
+  #tblProducts { width: 100% !important; }
+  #tblProducts th { white-space: nowrap; }
+  #tblProducts td { white-space: nowrap; } /* child rows akan auto-wrap sendiri */
+</style>
+
 <div class="container-xxl flex-grow-1 container-p-y">
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0 fw-bold">Product List</h5>
-
-        <div class="d-flex gap-2 align-items-center">
-            <input id="searchBox" class="form-control" style="min-width:280px" placeholder="Search products..." value="{{ request('q','') }}">
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#mdlAdd">
-                <i class="bx bx-plus"></i> Add Product
-            </button>
+  {{-- Toolbar --}}
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <label class="text-muted">Show</label>
+          <select id="pageLength" class="form-select" style="width:90px">
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+          </select>
         </div>
+
+        <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
+          <input id="searchProduct" type="text" class="form-control" placeholder="Search product..." style="max-width:260px">
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#mdlProduct" id="btnShowAdd">
+            <i class="bx bx-plus"></i> Add Product
+          </button>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>CODE</th>
-                    <th>PRODUCT NAME</th>
-                    <th>CATEGORY</th>
-                    <th>SUPPLIER</th>
-                    <th class="text-end">STOCK</th>
-                    <th class="text-end">PURCHASE</th>
-                    <th class="text-end">SELLING</th>
-                    <th>PACKAGE</th>
-                    <th class="text-end">ACTIONS</th>
-                </tr>
-            </thead>
+  {{-- Table: TANPA .table-responsive, pakai Responsive plugin --}}
+  <div class="card">
+    <table id="tblProducts" class="table table-hover align-middle mb-0 table-bordered">
+      <thead>
+      <tr>
+        <th>NO</th>             {{-- dipakai jadi control kolom responsive --}}
+        <th>CODE</th>
+        <th>PRODUCT NAME</th>
+        <th>CATEGORY</th>
+        <th>PACKAGE</th>
+        <th>SUPPLIER</th>
+        <th>DESCRIPTION</th>
+        <th class="text-end">STOCK</th>
+        <th class="text-end">PURCHASING</th>
+        <th class="text-end">SELLING</th>
+        <th style="width:120px">ACTIONS</th>
+      </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-            <tbody id="tbodyProducts">
-                @forelse($products as $p)
-                    <tr class="striped-row">
-                        <td><span class="fw-semibold text-dark">{{ $p->product_code ?? '-' }}</span></td>
-                        <td>
-                            <div class="fw-semibold">{{ $p->product_name }}</div>
-                            <div class="text-muted small">Group: {{ $p->product_group ?? '-' }}</div>
-                        </td>
-                        <td>{{ $p->category->name ?? $p->category->category_name ?? '-' }}</td>
-                        <td>{{ $p->supplier->name ?? $p->supplier->company_name ?? '-' }}</td>
-                        <td class="text-end"><span class="badge bg-label-info">{{ number_format((int)($p->stock ?? 0), 0, ',', '.') }}</span></td>
-                        <td class="text-end text-muted">Rp{{ number_format((float)($p->purchase_price ?? 0), 0, ',', '.') }}</td>
-                        <td class="text-end fw-semibold text-success">Rp{{ number_format((float)($p->selling_price ?? 0), 0, ',', '.') }}</td>
-                        <td>{{ $p->package_type ?? '-' }}</td>
-                        <td class="text-end">
-                            <div class="dropdown">
-                                <button class="btn btn-text-secondary p-0" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded fs-4"></i></button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <li><a class="dropdown-item" href="#"><i class="bx bx-show me-2"></i> Detail</a></li>
-                                    <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mdlEdit-{{ $p->id }}"><i class="bx bx-edit-alt me-2"></i> Edit</button></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li>
-                                        <form action="{{ route('products.destroy', $p->id) }}" method="POST" onsubmit="return confirm('Yakin hapus produk ini?')">
-                                            @csrf @method('DELETE')
-                                            <button class="dropdown-item text-danger" type="submit"><i class="bx bx-trash me-2"></i> Delete</button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="9" class="text-center text-muted py-5">Belum ada data produk.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    {{-- pagination (centered) — always render a small bar so developer can see/test it --}}
-    <div id="productsPagination" class="mt-3 d-flex justify-content-center">
-        @php
-            $paginator = $products;
-            // ensure we always show at least one page control (disabled if 1 page)
-            $last = $paginator->lastPage() ?: 1;
-            $cur = $paginator->currentPage() ?: 1;
-            $from = max(1, $cur - 3);
-            $to = min($last, $cur + 3);
-        @endphp
-
-        <nav aria-label="Products pagination">
-            <ul class="pagination">
-                <li class="page-item {{ $cur==1 ? 'disabled':'' }}">
-                    <a class="page-link products-page-link" href="{{ $paginator->url(1) }}" data-page="1">&laquo;</a>
-                </li>
-
-                @for ($i = $from; $i <= $to; $i++)
-                    <li class="page-item {{ $i==$cur ? 'active':'' }}">
-                        @if ($i==$cur)
-                            <span class="page-link">{{ $i }}</span>
-                        @else
-                            <a class="page-link products-page-link" href="{{ $paginator->url($i) }}" data-page="{{ $i }}">{{ $i }}</a>
-                        @endif
-                    </li>
-                @endfor
-
-                <li class="page-item {{ $cur==$last ? 'disabled':'' }}">
-                    <a class="page-link products-page-link" href="{{ $paginator->url($last) }}" data-page="{{ $last }}">&raquo;</a>
-                </li>
-            </ul>
-        </nav>
-    </div>
 </div>
 
-{{-- Modal zone: server-rendered modals for products on this page --}}
-<div id="modalZone">
-    @foreach($products as $p)
-    <div class="modal fade" id="mdlEdit-{{ $p->id }}" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-        <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title fw-semibold">Edit Product #{{ $p->id }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            @php $v = fn($key,$def=null)=> old($key, data_get($p,$key,$def)); @endphp
-            <form action="{{ route('products.update', $p->id) }}" method="POST">
-                @csrf @method('PUT')
-                <input type="hidden" name="open" value="edit-{{ $p->id }}">
-                <div class="modal-body">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Product Code <span class="text-danger">*</span></label>
-                            <input type="text" name="product_code" class="form-control @error('product_code') is-invalid @enderror" value="{{ $v('product_code') }}" required>
-                        </div>
-                        <div class="col-md-8">
-                            <label class="form-label">Product Name <span class="text-danger">*</span></label>
-                            <input type="text" name="product_name" class="form-control @error('product_name') is-invalid @enderror" value="{{ $v('product_name') }}" required>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Category</label>
-                            <select name="category_id" class="form-select">
-                                <option value="">— Choose —</option>
-                                @foreach($categories as $c)
-                                    <option value="{{ $c->id }}" @selected($v('category_id')==$c->id)>{{ $c->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Supplier</label>
-                            <select name="supplier_id" class="form-select">
-                                <option value="">— Choose —</option>
-                                @foreach($suppliers as $s)
-                                    <option value="{{ $s->id }}" @selected($v('supplier_id')==$s->id)>{{ $s->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Warehouse</label>
-                            <select name="warehouse_id" class="form-select">
-                                <option value="">— Choose —</option>
-                                @foreach($warehouses as $w)
-                                    <option value="{{ $w->id }}" @selected($v('warehouse_id')==$w->id)>{{ $w->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Purchase Price</label>
-                            <input type="text" inputmode="numeric" name="purchase_price" class="form-control money" value="{{ $v('purchase_price',0) }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Selling Price</label>
-                            <input type="text" inputmode="numeric" name="selling_price" class="form-control money" value="{{ $v('selling_price',0) }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Stock</label>
-                            <input type="text" inputmode="numeric" name="stock" class="form-control int" value="{{ (int)$v('stock',0) }}">
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Package Type</label>
-                            <input type="text" name="package_type" class="form-control" value="{{ $v('package_type') }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Product Group</label>
-                            <input type="text" name="product_group" class="form-control" value="{{ $v('product_group') }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Registration Number</label>
-                            <input type="text" name="registration_number" class="form-control" value="{{ $v('registration_number') }}">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-light" type="button" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-primary" type="submit">Save Changes</button>
-                </div>
-            </form>
-        </div></div>
-    </div>
-    @endforeach
-</div>
-
-{{-- Add modal --}}
-<div class="modal fade" id="mdlAdd" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+{{-- Modal Add/Edit --}}
+<div class="modal fade" id="mdlProduct" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
     <div class="modal-header">
-        <h5 class="modal-title fw-semibold">Add Product</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      <h5 class="modal-title fw-semibold" id="modalTitle">Add Product</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
     </div>
-    <form action="{{ route('products.store') }}" method="POST">
-        @csrf
-        <input type="hidden" name="open" value="add">
-        <div class="modal-body">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Product Code <span class="text-danger">*</span></label>
-                    <input type="text" name="product_code" value="{{ old('product_code') }}" class="form-control @error('product_code') is-invalid @enderror" required>
-                </div>
-                <div class="col-md-8">
-                    <label class="form-label">Product Name <span class="text-danger">*</span></label>
-                    <input type="text" name="product_name" value="{{ old('product_name') }}" class="form-control @error('product_name') is-invalid @enderror" required>
-                </div>
+    <form id="formProduct" class="modal-body">
+      @csrf
+      <input type="hidden" name="_method" id="method" value="POST">
+      <div class="row g-3">
 
-                <div class="col-md-4">
-                    <label class="form-label">Category</label>
-                    <select name="category_id" class="form-select">
-                        <option value="">— Choose —</option>
-                        @foreach($categories as $c)
-                        <option value="{{ $c->id }}" @selected(old('category_id')==$c->id)>{{ $c->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Supplier</label>
-                    <select name="supplier_id" class="form-select">
-                        <option value="">— Choose —</option>
-                        @foreach($suppliers as $s)
-                        <option value="{{ $s->id }}" @selected(old('supplier_id')==$s->id)>{{ $s->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Warehouse</label>
-                    <select name="warehouse_id" class="form-select">
-                        <option value="">— Choose —</option>
-                        @foreach($warehouses as $w)
-                        <option value="{{ $w->id }}" @selected(old('warehouse_id')==$w->id)>{{ $w->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label">Purchase Price</label>
-                    <input type="text" inputmode="numeric" name="purchase_price" class="form-control money" value="{{ old('purchase_price',0) }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Selling Price</label>
-                    <input type="text" inputmode="numeric" name="selling_price" class="form-control money" value="{{ old('selling_price',0) }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Stock</label>
-                    <input type="text" inputmode="numeric" name="stock" class="form-control int" value="{{ old('stock',0) }}">
-                </div>
-
-                <div class="col-md-4">
-                    <label class="form-label">Package Type</label>
-                    <input type="text" name="package_type" class="form-control" value="{{ old('package_type') }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Product Group</label>
-                    <input type="text" name="product_group" class="form-control" value="{{ old('product_group') }}">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Registration Number</label>
-                    <input type="text" name="registration_number" class="form-control" value="{{ old('registration_number') }}">
-                </div>
-            </div>
+        <div class="col-md-4">
+          <label class="form-label">Product Code <span class="text-danger">*</span></label>
+          <input type="text" name="product_code" id="product_code" class="form-control"
+                 value="{{ $nextProductCode }}" data-default="{{ $nextProductCode }}" required placeholder="PRD-001">
+          <small class="text-muted">Bisa diubah. Duplikat akan ditolak.</small>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-light" type="button" data-bs-dismiss="modal">Cancel</button>
-            <button class="btn btn-primary" type="submit">Create</button>
+        <div class="col-md-8">
+          <label class="form-label">Product Name <span class="text-danger">*</span></label>
+          <input type="text" name="name" id="name" class="form-control" required>
         </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Category <span class="text-danger">*</span></label>
+          <select name="category_id" id="category_id" class="form-select" required>
+            <option value="">— Choose —</option>
+            @foreach($categories as $c)
+              <option value="{{ $c->id }}">{{ $c->category_name }}</option>
+            @endforeach
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Package / Satuan</label>
+          <select name="package_id" id="package_id" class="form-select">
+            <option value="">— None —</option>
+            @foreach($packages as $p)
+              <option value="{{ $p->id }}">{{ $p->package_name }}</option>
+            @endforeach
+          </select>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Supplier</label>
+          <select name="supplier_id" id="supplier_id" class="form-select">
+            <option value="">— None —</option>
+            @foreach($suppliers as $s)
+              <option value="{{ $s->id }}">{{ $s->name }}</option>
+            @endforeach
+          </select>
+        </div>
+
+        <div class="col-md-12">
+          <label class="form-label">Description</label>
+          <textarea name="description" id="description" class="form-control" rows="3" placeholder="Optional"></textarea>
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Purchasing Price</label>
+          <input type="number" name="purchasing_price" id="purchasing_price" class="form-control" value="0" min="0">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Selling Price</label>
+          <input type="number" name="selling_price" id="selling_price" class="form-control" value="0" min="0">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Min Stock</label>
+          <input type="number" name="stock_minimum" id="stock_minimum" class="form-control" min="0">
+        </div>
+
+      </div>
+
+      <div class="mt-4 d-flex gap-2 justify-content-end">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSubmit">Submit</button>
+      </div>
     </form>
-    </div></div>
+  </div></div>
 </div>
-
-</div>
-
-@if(session('success'))
-<script>
-document.addEventListener('DOMContentLoaded', ()=> {
-    Swal.fire({ icon:'success', title:'Berhasil', text:'{{ session('success') }}' });
-});
-</script>
-@endif
 @endsection
 
-@push('styles')
-<style>
-    .swal2-container{ z-index:20000 !important; }
-    .table tbody tr.striped-row:nth-child(odd) { background: #f8f9fa; }
-    .table tbody tr.striped-row:hover { background: #eef2ff; }
-    .btn-text-secondary { background: transparent; border: 0; color: var(--bs-secondary-color); }
-    .products-pagination { display:flex; justify-content:center; }
-</style>
-@endpush
-
 @push('scripts')
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+
+{{-- DataTables Responsive JS --}}
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
-window.DD = window.DD || {
-    categories: @json($categories ?? []),
-    suppliers:  @json($suppliers ?? []),
-    warehouses: @json($warehouses ?? []),
-    updateUrlPattern: @json(route('products.update', 0)),
-    csrf: @json(csrf_token()),
-};
+$(function () {
+  const baseUrl     = @json(url('products'));
+  const dtUrl       = @json(route('products.datatable'));
+  const nextCodeUrl = @json(route('products.next_code'));
+  const csrf        = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-function rp(n){ return 'Rp' + Number(n||0).toLocaleString('id-ID'); }
+  $.ajaxSetup({ headers: {'X-CSRF-TOKEN': csrf} });
 
-/* ===== Number normalize/pretty/bindMask ===== */
-function normalize(val, isInt=false){
-    let s = String(val ?? '').replace(/[^\d.,-]/g,'');
-    if (!s) return '0';
-    const hasComma = s.includes(',');
-    const hasDot   = s.includes('.');
-    if (isInt) return (s.replace(/\D/g,'') || '0');
+  const table = $('#tblProducts').DataTable({
+    processing: true,
+    serverSide: true,
+    lengthChange: false,
+    dom: 'rt<"d-flex justify-content-between align-items-center p-2"ip>',
+    ajax: { url: dtUrl, type: 'GET' },
+    order: [[1, 'asc']],
 
-    if (hasComma && hasDot) {
-        const lastComma = s.lastIndexOf(',');
-        const lastDot = s.lastIndexOf('.');
-        const decSep = lastComma > lastDot ? ',' : '.';
-        const intPart = s.slice(0, (decSep === ',') ? lastComma : lastDot).replace(/\D/g,'') || '0';
-        const decPart = s.slice(((decSep === ',') ? lastComma : lastDot) + 1).replace(/\D/g,'').slice(0,2);
-        return decPart ? `${intPart}.${decPart}` : intPart;
-    }
-    if (hasComma && !hasDot) {
-        const last = s.lastIndexOf(',');
-        const i = s.slice(0,last).replace(/\D/g,'') || '0';
-        const d = s.slice(last+1).replace(/\D/g,'').slice(0,2);
-        return d ? `${i}.${d}` : i;
-    }
-    if (hasDot && !hasComma) {
-        const thousandPattern = /^\d{1,3}(?:\.\d{3})+$/;
-        if (thousandPattern.test(s)) return s.replace(/\D/g,'') || '0';
-        const last = s.lastIndexOf('.');
-        const i = s.slice(0,last).replace(/\D/g,'') || '0';
-        const d = s.slice(last+1).replace(/\D/g,'').slice(0,2);
-        return d ? `${i}.${d}` : i;
-    }
-    return s.replace(/\D/g,'') || '0';
-}
-
-function pretty(val, isInt=false){
-    const plain = normalize(val, isInt);
-    let [i, d=''] = String(plain).split('.');
-    i = i.replace(/^0+(?=\d)/,'');
-    i = (i || '0').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-    return isInt ? i : (i + (d ? ','+d : ''));
-}
-
-function bindMask(root=document){
-    root.querySelectorAll('.money, .int').forEach(el=>{
-        if (el.dataset._masked) return;
-        el.dataset._masked = '1';
-        const isInt = el.classList.contains('int');
-        el.value = pretty(el.value || 0, isInt);
-        el.addEventListener('focus', ()=> { el.value = normalize(el.value, isInt); queueMicrotask(()=> el.selectionStart = el.selectionEnd = el.value.length); });
-        el.addEventListener('input', ()=> { el.value = String(el.value).replace(/[^\d.,-]/g,''); });
-        el.addEventListener('blur', ()=> { el.value = pretty(el.value, isInt); });
-    });
-}
-document.addEventListener('submit', (e)=> {
-    const f = e.target;
-    if (!f.closest('.modal')) return;
-    f.querySelectorAll('.money').forEach(el=> el.value = normalize(el.value, false));
-    f.querySelectorAll('.int').forEach(el=> el.value = normalize(el.value, true));
-});
-
-/* ===== AJAX search + pagination ===== */
-const searchUrl  = @json(route('products.search'));
-const searchBox  = document.getElementById('searchBox');
-const tbody      = document.getElementById('tbodyProducts');
-const modalZone  = document.getElementById('modalZone');
-const paginationContainer = document.getElementById('productsPagination');
-
-function optionList(list, selectedId){
-    return ['<option value="">— Choose —</option>'].concat(
-        (list||[]).map(o=>`<option value="${o.id}" ${Number(selectedId)===Number(o.id)?'selected':''}>${o.name}</option>`)
-    ).join('');
-}
-
-function rowHTML(p){
-    return `
-    <tr class="striped-row">
-        <td><span class="fw-semibold text-dark">${p.product_code ?? '-'}</span></td>
-        <td><div class="fw-semibold">${p.product_name ?? '-'}</div>
-            <div class="text-muted small">Group: ${p.product_group ?? '-'}</div></td>
-        <td>${p.category ?? '-'}</td>
-        <td>${p.supplier ?? '-'}</td>
-        <td class="text-end"><span class="badge bg-label-info">${Number(p.stock||0).toLocaleString('id-ID')}</span></td>
-        <td class="text-end text-muted">${rp(p.purchase_price)}</td>
-        <td class="text-end fw-semibold text-success">${rp(p.selling_price)}</td>
-        <td>${p.package_type ?? '-'}</td>
-        <td class="text-end">
-            <div class="dropdown">
-                <button class="btn btn-text-secondary p-0" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded fs-4"></i></button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" href="#"><i class="bx bx-show me-2"></i> Detail</a></li>
-                <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#mdlEdit-${p.id}"><i class="bx bx-edit-alt me-2"></i> Edit</button></li>
-                <li><hr class="dropdown-divider"></li>
-                <li>
-                    <form action="${DD.updateUrlPattern.replace(/0$/, p.id)}" method="POST" onsubmit="return confirm('Yakin hapus produk ini?')">
-                    <input type="hidden" name="_token" value="${DD.csrf}">
-                    <input type="hidden" name="_method" value="DELETE">
-                    <button class="dropdown-item text-danger" type="submit"><i class="bx bx-trash me-2"></i> Delete</button>
-                    </form>
-                </li>
-                </ul>
-            </div>
-        </td>
-    </tr>`;
-}
-
-function modalHTML(p){
-    return `
-    <div class="modal fade" id="mdlEdit-${p.id}" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-        <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
-        <div class="modal-header">
-            <h5 class="modal-title fw-semibold">Edit Product #${p.id}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <form action="${DD.updateUrlPattern.replace(/0$/, p.id)}" method="POST">
-            <input type="hidden" name="_token" value="${DD.csrf}">
-            <input type="hidden" name="_method" value="PUT">
-            <input type="hidden" name="open" value="edit-${p.id}">
-            <div class="modal-body">
-            <div class="row g-3">
-                <div class="col-md-4">
-                <label class="form-label">Product Code <span class="text-danger">*</span></label>
-                <input type="text" name="product_code" class="form-control" value="${p.product_code??''}" required>
-                </div>
-                <div class="col-md-8">
-                <label class="form-label">Product Name <span class="text-danger">*</span></label>
-                <input type="text" name="product_name" class="form-control" value="${p.product_name??''}" required>
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Category</label>
-                <select name="category_id" class="form-select">${optionList(DD.categories, p.category_id)}</select>
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Supplier</label>
-                <select name="supplier_id" class="form-select">${optionList(DD.suppliers, p.supplier_id)}</select>
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Warehouse</label>
-                <select name="warehouse_id" class="form-select">${optionList(DD.warehouses, p.warehouse_id)}</select>
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Purchase Price</label>
-                <input type="text" inputmode="numeric" name="purchase_price" class="form-control money" value="${p.purchase_price??0}">
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Selling Price</label>
-                <input type="text" inputmode="numeric" name="selling_price" class="form-control money" value="${p.selling_price??0}">
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Stock</label>
-                <input type="text" inputmode="numeric" name="stock" class="form-control int" value="${p.stock??0}">
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Package Type</label>
-                <input type="text" name="package_type" class="form-control" value="${p.package_type??''}">
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Product Group</label>
-                <input type="text" name="product_group" class="form-control" value="${p.product_group??''}">
-                </div>
-                <div class="col-md-4">
-                <label class="form-label">Registration Number</label>
-                <input type="text" name="registration_number" class="form-control" value="${p.registration_number??''}">
-                </div>
-            </div>
-            </div>
-            <div class="modal-footer">
-            <button class="btn btn-light" type="button" data-bs-dismiss="modal">Cancel</button>
-            <button class="btn btn-primary" type="submit">Save Changes</button>
-            </div>
-        </form>
-        </div></div>
-    </div>`;
-}
-
-/* enhance pagination anchors: add class/data-page and attach click */
-function enhancePagination(container){
-    if(!container) return;
-    container.querySelectorAll('a').forEach(a=>{
-        try {
-            if (a.dataset.page) {
-                a.classList.add('products-page-link');
-                return;
+    // === RESPONSIVE ===
+    responsive: {
+      details: {
+        type: 'column',     // klik kolom pertama (NO) untuk buka detail
+        target: 0,
+        renderer: function ( api, rowIdx, columns ) {
+          // render kolom yang "none" ke bentuk daftar rapi
+          const data = $.map(columns, function (col, i) {
+            if (col.hidden) {
+              return `<tr>
+                        <td class="text-muted">${col.title}</td>
+                        <td>${col.data || '-'}</td>
+                      </tr>`;
             }
-            const url = new URL(a.href, window.location.origin);
-            const p = url.searchParams.get('page') || 1;
-            a.dataset.page = p;
-            a.classList.add('products-page-link');
-        } catch(e){
-            // ignore
+            return '';
+          }).join('');
+          return data ? $('<table/>').addClass('table table-sm mb-0').append(data) : false;
         }
+      }
+    },
+
+    columnDefs: [
+      // jadikan kolom NO sebagai control untuk responsive details
+      { className: 'dtr-control', orderable: false, targets: 0 },
+      // Prioritas: NAME & ACTIONS tetap kelihatan di layar kecil
+      { responsivePriority: 1, targets: 2 },    // PRODUCT NAME
+      { responsivePriority: 2, targets: 10 },   // ACTIONS
+    ],
+
+    // Set kolom mana yg selalu tampil (all) dan mana yang pindah ke child (none)
+    columns: [
+      { data: 'rownum', orderable:false, searchable:false, className:'all' }, // NO (control)
+      { data: 'product_code', className:'all' },   // all = selalu tampil
+      { data: 'name', className:'all' },
+      { data: 'category', className:'none' },      // none = pindah ke child row saat sempit
+      { data: 'package', className:'none' },
+      { data: 'supplier', className:'none' },
+      { data: 'description', className:'none' },
+      { data: 'total_stock', className:'none text-end' },
+      { data: 'purchasing_price', className:'none text-end' },
+      { data: 'selling_price', className:'none text-end' },
+      { data: 'actions', orderable:false, searchable:false, className:'all' }
+    ]
+  });
+
+  $('#searchProduct').on('keyup change', function(){ table.search(this.value).draw(); });
+  $('#pageLength').on('change', function(){ table.page.len(parseInt(this.value||10,10)).draw(); });
+  $('#product_code').on('input', function(){ this.value = this.value.toUpperCase(); });
+
+  // ADD
+  $('#btnShowAdd').on('click', function(){
+    $('#modalTitle').text('Add Product');
+    $('#formProduct').attr('action', baseUrl);
+    $('#method').val('POST');
+    $('#btnSubmit').text('Submit');
+    $('#formProduct').trigger('reset');
+    $('#category_id, #package_id, #supplier_id').val('');
+
+    $.get(nextCodeUrl, function(res){
+      $('#product_code').val(res?.next_code || $('#product_code').data('default'));
     });
+  });
 
-    attachProductsPageHandlers(container);
-}
-
-function attachProductsPageHandlers(root=document){
-    root.querySelectorAll('a.products-page-link').forEach(a=>{
-        if (a.dataset._bound) return;
-        a.dataset._bound = '1';
-        a.addEventListener('click', function(ev){
-            ev.preventDefault();
-            const q = (document.getElementById('searchBox')?.value || '').trim();
-            const p = this.dataset.page || 1;
-            doSearch(q, p);
-        });
-    });
-}
-
-function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
-
-const doSearch = debounce(async (q, page=1) => {
-    try {
-        const url = new URL(searchUrl, window.location.origin);
-        url.searchParams.set('q', q);
-        url.searchParams.set('page', page);
-        const res = await fetch(url, { headers: { 'X-Requested-With':'XMLHttpRequest' }} );
-        const json = await res.json();
-        const data = json.data || [];
-        const pagination = json.pagination || '';
-
-        if (!data.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5">Tidak ada data.</td></tr>';
-            modalZone.innerHTML = '';
-            paginationContainer.innerHTML = pagination;
-            enhancePagination(paginationContainer);
-            return;
+  // SUBMIT
+  $('#formProduct').on('submit', function(e){
+    e.preventDefault();
+    const fd = new FormData(this);
+    fd.set('_method', $('#method').val());
+    $.ajax({
+      url: $(this).attr('action') || baseUrl,
+      method: 'POST',
+      data: fd, processData: false, contentType: false,
+      success: function(res){
+        $('#mdlProduct').modal('hide');
+        table.ajax.reload(null, false);
+        Swal.fire({ title: res.success, icon: 'success', timer: 1200, showConfirmButton:false });
+      },
+      error: function(xhr){
+        let msg = 'Something went wrong!';
+        if (xhr.status === 422 && xhr.responseJSON?.errors) {
+          msg = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+        } else if (xhr.responseJSON?.error) {
+          msg = xhr.responseJSON.error;
         }
+        Swal.fire({ title: 'Error!', html: msg, icon:'error' });
+      }
+    });
+  });
 
-        tbody.innerHTML = data.map(rowHTML).join('');
-        modalZone.innerHTML = data.map(modalHTML).join('');
-        paginationContainer.innerHTML = pagination;
+  // EDIT
+  $(document).on('click', '.js-edit', function(){
+    const d = $(this).data();
+    $('#modalTitle').text('Edit Product');
+    $('#formProduct').attr('action', baseUrl + '/' + d.id);
+    $('#method').val('PUT');
+    $('#btnSubmit').text('Update');
 
-        bindMask(modalZone);
-        enhancePagination(paginationContainer);
-    } catch(err){
-        console.error('Search error', err);
-    }
-}, 250);
+    $('#product_code').val(d.product_code);
+    $('#name').val(d.name);
+    $('#category_id').val(d.category_id || '');
+    $('#package_id').val(d.package_id || '');
+    $('#supplier_id').val(d.supplier_id || '');
+    $('#description').val(d.description || '');
+    $('#purchasing_price').val(d.purchasing_price);
+    $('#selling_price').val(d.selling_price);
+    $('#stock_minimum').val(d.stock_minimum || '');
 
-searchBox?.addEventListener('input', e => doSearch(e.target.value.trim()));
+    $('#mdlProduct').modal('show');
+  });
 
-// initial bind
-document.addEventListener('DOMContentLoaded', ()=> {
-    bindMask(document);
-    enhancePagination(document.getElementById('productsPagination'));
+  // DELETE
+  $(document).on('click', '.js-del', function(){
+    const id = $(this).data('id');
+    Swal.fire({
+      title: 'Delete product?',
+      text: 'Tindakan ini tidak bisa dibatalkan.',
+      icon: 'warning',
+      showCancelButton: true
+    }).then((res) => {
+      if (!res.isConfirmed) return;
+      $.post(baseUrl + '/' + id, {_method:'DELETE'}, function (r) {
+        table.ajax.reload(null, false);
+        Swal.fire('Deleted!', r.success, 'success');
+      }).fail(function(){
+        Swal.fire('Error!', 'Could not delete product!', 'error');
+      });
+    });
+  });
 });
 </script>
 @endpush

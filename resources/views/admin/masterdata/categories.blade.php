@@ -1,5 +1,7 @@
     @extends('layouts.home')
 
+    @section('title','Categories')
+
     @section('content')
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <div class="container-xxl flex-grow-1 container-p-y">
@@ -9,238 +11,222 @@
         <h4 class="mb-1 fw-bold">Categories</h4>
         <small class="text-muted">Manage your product categories here.</small>
         </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreate">
+        <i class="bx bx-plus"></i> Add Category
+        </button>
     </div>
 
-    {{-- Create form (inline, no modal) --}}
     <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body">
-        <form id="createCategoryForm" class="row g-2 align-items-end" method="POST" action="{{ route('categories.store') }}">
-            @csrf
-            <div class="col-md-4">
-            <label class="form-label mb-0">Category Name <span class="text-danger">*</span></label>
-            <input name="category_name" class="form-control" required>
+        <div class="card-body pb-0">
+        <div class="d-flex gap-2 flex-wrap align-items-center mb-2">
+            <input id="dt-search" class="form-control" placeholder="Type to search..." style="max-width:260px">
+            <select id="dt-length" class="form-select" style="width:120px">
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            </select>
+        </div>
+        </div>
+        <div class="table-responsive">
+        <table id="dtCategories" class="table table-sm align-middle mb-0">
+            <thead>
+            <tr>
+            <th style="width:80px">ID</th>
+            <th>Code Category</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th style="width:160px">Updated</th>
+            <th style="width:120px" class="text-end">Actions</th>
+            </tr>
+            </thead>
+        </table>
+        </div>
+    </div>
+    </div>
+
+    {{-- =============== CREATE MODAL =============== --}}
+    <div class="modal fade" id="modalCreate" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="formCreate" class="modal-content" method="POST" action="{{ route('categories.store') }}">
+        @csrf
+        <div class="modal-header">
+            <h5 class="modal-title">Add Category</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body row g-3">
+            <div class="col-6">
+            <label class="form-label">Category Code <span class="text-danger">*</span></label>
+            <input name="category_code" class="form-control" required placeholder="e.g. FACECARE">
             </div>
-            <div class="col-md-6">
-            <label class="form-label mb-0">Description</label>
-            <input name="description" class="form-control">
+            <div class="col-6">
+            <label class="form-label">Category Name <span class="text-danger">*</span></label>
+            <input name="category_name" class="form-control" required placeholder="e.g. Face Care">
             </div>
-            <div class="col-md-2">
-            <button class="btn btn-primary w-100"><i class="bx bx-save"></i> Save</button>
+            <div class="col-12">
+            <label class="form-label">Description</label>
+            <textarea name="description" rows="3" class="form-control" placeholder="(optional)"></textarea>
             </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
+            <button class="btn btn-primary" type="submit"><i class="bx bx-save"></i> Save</button>
+        </div>
         </form>
-        </div>
+    </div>
     </div>
 
-    {{-- Table + Right edit panel layout --}}
-    <div class="row">
-        <div class="col-lg-8">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body pb-0">
-            <div class="d-flex gap-2 flex-wrap align-items-center mb-2">
-                <input id="dt-search" class="form-control" placeholder="Type to search...">
-                <select id="dt-length" class="form-select" style="width:120px">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                </select>
+    {{-- =============== EDIT MODAL =============== --}}
+    <div class="modal fade" id="modalEdit" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="formEdit" class="modal-content" method="POST" action="#">
+        @csrf @method('PUT')
+        <input type="hidden" id="edit_id">
+        <div class="modal-header">
+            <h5 class="modal-title">Edit Category</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body row g-3">
+            <div class="col-6">
+            <label class="form-label">Category Code <span class="text-danger">*</span></label>
+            <input id="edit_category_code" name="category_code" class="form-control" required>
             </div>
+            <div class="col-6">
+            <label class="form-label">Category Name <span class="text-danger">*</span></label>
+            <input id="edit_category_name" name="category_name" class="form-control" required>
             </div>
-            <div class="table-responsive">
-            <table id="dtCategories" class="table table-sm align-middle mb-0">
-                <thead>
-                <tr>
-                    <th style="width:80px">ID</th>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th style="width:160px">Updated</th>
-                    <th style="width:120px" class="text-end">Actions</th>
-                </tr>
-                </thead>
-            </table>
+            <div class="col-12">
+            <label class="form-label">Description</label>
+            <textarea id="edit_description" name="description" rows="3" class="form-control"></textarea>
             </div>
         </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
+            <button class="btn btn-primary" type="submit"><i class="bx bx-save"></i> Save</button>
         </div>
-
-        {{-- Right side edit panel (no modal/offcanvas) --}}
-        <div class="col-lg-4">
-        @php $editId = (int) request('edit'); $edit = $editId ? \App\Models\Category::find($editId) : null; @endphp
-        <div class="card border-0 shadow-sm sticky-top" style="top:84px">
-            <div class="card-header bg-light fw-semibold">
-            <i class="bx bx-edit-alt"></i> {{ $edit ? "Edit Category #{$edit->id}" : 'Tips' }}
-            </div>
-            <div class="card-body">
-            @if($edit)
-            <form id="editCategoryForm" method="POST" action="{{ route('categories.update', $edit) }}" class="row g-3">
-                @csrf @method('PUT')
-                <div class="col-12">
-                <label class="form-label">Category Name</label>
-                <input name="category_name" value="{{ old('category_name', $edit->category_name) }}" class="form-control" required>
-                </div>
-                <div class="col-12">
-                <label class="form-label">Description</label>
-                <textarea name="description" rows="3" class="form-control">{{ old('description', $edit->description) }}</textarea>
-                </div>
-                <div class="col-12 d-flex gap-2">
-                <button class="btn btn-primary"><i class="bx bx-save"></i> Save</button>
-                <a class="btn btn-outline-secondary" href="{{ route('categories.index') }}"><i class="bx bx-x-circle"></i> Cancel</a>
-                </div>
-            </form>
-            @else
-                <div class="text-muted small">
-                Klik tombol <span class="badge bg-label-primary">Edit</span> pada baris untuk membuka panel ini.
-                </div>
-            @endif
-            </div>
-        </div>
-        </div>
+        </form>
     </div>
-
     </div>
     @endsection
 
     @push('styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/v/bs5/dt-2.1.5/r-3.0.3/datatables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/v/bs5/dt-2.1.5/datatables.min.css">
     <style>
-
-    .swal2-container {
-        z-index: 20000 !important;   /* > z-index navbar (±1030) & modal (1055–1065) */
-    }
-
-    /* Dark mode skin (mengatasi bentrok) */
+    .swal2-container { z-index: 20000 !important; }
     html[data-color-scheme="dark"] .dataTable,
     html[data-color-scheme="dark"] .dataTables_wrapper .dataTables_info,
     html[data-color-scheme="dark"] .dataTables_wrapper .dataTables_paginate .paginate_button {
         color: var(--text, #e5e7eb) !important;
     }
-    html[data-color-scheme="dark"] .table thead th {
-        background: var(--bg-elev-1, #171b24) !important;
-        border-color: var(--border, #2a3244) !important;
-    }
-    html[data-color-scheme="dark"] table.dataTable>tbody>tr>td,
-    html[data-color-scheme="dark"] table.dataTable>tbody>tr>th,
-    html[data-color-scheme="dark"] .dataTables_wrapper .dataTables_paginate .paginate_button {
-        background: var(--bg-card, #0f1420) !important;
-        border-color: var(--border, #2a3244) !important;
-    }
-    html[data-color-scheme="dark"] .dataTables_wrapper .dataTables_paginate .paginate_button.current {
-        background: var(--primary, #6366f1) !important; color: #fff !important; border-color: var(--primary, #6366f1)!important;
-    }
-    html[data-color-scheme="dark"] .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
-        background: var(--bg-hover, #1f2430) !important;
-    }
     </style>
     @endpush
 
     @push('scripts')
-    <script src="https://cdn.datatables.net/v/bs5/dt-2.1.5/r-3.0.3/datatables.min.js"></script>
+    <script src="https://cdn.datatables.net/v/bs5/dt-2.1.5/datatables.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     (() => {
     const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
-    // ===== DataTable =====
     const DT = $('#dtCategories').DataTable({
         processing: true,
         serverSide: true,
         ajax: { url: "{{ route('categories.datatable') }}", type: 'GET' },
         order: [[0,'asc']],
         columns: [
-        { data: 'id', name: 'id', width: 80, className:'align-middle' },
-        { data: 'category_name', name: 'category_name', className:'fw-semibold align-middle' },
-        { data: 'description', name: 'description', className:'text-muted align-middle' },
-        { data: 'updated_at', name: 'updated_at', width: 160, className:'align-middle' },
-        { data: 'actions', orderable:false, searchable:false, width: 120, className:'text-end align-middle' },
+        { data: 'id',            name: 'id',            width: 80,  className:'align-middle' },
+        { data: 'category_code', name: 'category_code',            className:'align-middle fw-semibold' },
+        { data: 'category_name', name: 'category_name',            className:'align-middle' },
+        { data: 'description',   name: 'description',              className:'align-middle text-muted' },
+        { data: 'updated_at',    name: 'updated_at',   width: 160, className:'align-middle' },
+        { data: 'actions',       orderable:false, searchable:false, width:120, className:'text-end align-middle' },
         ],
         responsive: true,
         stateSave: true,
         searchDelay: 250,
         lengthMenu: [[10,25,50],[10,25,50]],
         dom: 't<"d-flex justify-content-between align-items-center p-2"ip>',
-        language: {
-        processing: 'Loading...', search: '', searchPlaceholder: '',
-        paginate: { previous: 'Prev', next: 'Next' }
-        }
     });
 
-    // External search & length
+    // external search & length
     document.getElementById('dt-search').addEventListener('input', e => DT.search(e.target.value).draw());
     document.getElementById('dt-length').addEventListener('change', e => DT.page.len(+e.target.value).draw());
 
-    const toast = (msg, icon='success') => Swal.fire({icon, title: msg, timer: 1600, showConfirmButton:false});
+    const toast = (msg, icon='success') => Swal.fire({icon, title: msg, timer: 1400, showConfirmButton:false});
 
-    // ===== CREATE (AJAX + SweetAlert) =====
-    const createForm = document.getElementById('createCategoryForm');
-    if (createForm) {
-        createForm.addEventListener('submit', async (e) => {
+    // CREATE
+    const modalCreate = document.getElementById('modalCreate');
+    const formCreate  = document.getElementById('formCreate');
+
+    formCreate.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = formCreate.querySelector('[type="submit"]') || formCreate.querySelector('button');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...'; }
         try {
-            const res = await fetch(createForm.action, { method:'POST', headers:{'X-CSRF-TOKEN': CSRF}, body:new FormData(createForm) });
-            if (res.status === 422) {
-            const j = await res.json();
-            const html = Object.values(j.errors||{}).flat().join('<br>');
-            return Swal.fire({icon:'error', title:'Validasi gagal', html});
-            }
-            // JSON mode (controller ajax)
-            let j; try { j = await res.json(); } catch { j = null; }
-            if (j && j.success) {
-            toast(j.success);
-            createForm.reset();
-            DT.ajax.reload(null,false);
-            } else {
-            // fallback kalau balasan redirect HTML
-            toast('Kategori berhasil ditambahkan');
-            createForm.reset();
-            DT.ajax.reload(null,false);
-            }
-        } catch {
-            Swal.fire('Error','Gagal menambahkan kategori','error');
-        }
+        const res = await fetch(formCreate.action, {
+            method:'POST', headers:{'X-CSRF-TOKEN': CSRF}, body:new FormData(formCreate)
         });
-    }
+        if (res.status === 422) {
+            const j = await res.json(); throw new Error(Object.values(j.errors||{}).flat().join('<br>'));
+        }
+        await res.json().catch(()=> ({}));
+        (bootstrap.Modal.getInstance(modalCreate) || new bootstrap.Modal(modalCreate)).hide();
+        formCreate.reset();
+        DT.ajax.reload(null,false);
+        toast('Category created');
+        } catch (err) {
+        Swal.fire({icon:'error', title:'Error', html: err.message || 'Failed'});
+        } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bx bx-save"></i> Save'; }
+        }
+    });
 
-    // ===== EDIT (AJAX + SweetAlert) =====
-    const editForm = document.getElementById('editCategoryForm');
-    if (editForm) {
-        editForm.addEventListener('submit', async (e)=>{
+    // EDIT
+    window.openEdit = function(id, code, name, desc){
+        const m = new bootstrap.Modal(document.getElementById('modalEdit'));
+        document.getElementById('edit_id').value = id;
+        document.getElementById('edit_category_code').value = code;
+        document.getElementById('edit_category_name').value = name;
+        document.getElementById('edit_description').value  = desc || '';
+        document.getElementById('formEdit').action = "{{ route('categories.update', ':id') }}".replace(':id', id);
+        m.show();
+    };
+
+    const modalEdit = document.getElementById('modalEdit');
+    const formEdit  = document.getElementById('formEdit');
+
+    formEdit.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = formEdit.querySelector('[type="submit"]') || formEdit.querySelector('button');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...'; }
         try {
-            const res = await fetch(editForm.action, {
+        const res = await fetch(formEdit.action, {
             method:'POST',
             headers:{'X-CSRF-TOKEN': CSRF, 'X-HTTP-Method-Override':'PUT'},
-            body:new FormData(editForm)
-            });
-            if (res.status === 422) {
-            const j = await res.json();
-            const html = Object.values(j.errors||{}).flat().join('<br>');
-            return Swal.fire({icon:'error', title:'Validasi gagal', html});
-            }
-            let j; try { j = await res.json(); } catch { j = null; }
-            if (j && j.success) {
-            toast(j.success);
-            } else {
-            toast('Kategori diperbarui');
-            }
-            DT.ajax.reload(null,false);
-            setTimeout(()=> location.href="{{ route('categories.index') }}", 800);
-        } catch {
-            Swal.fire('Error','Gagal update kategori','error');
+            body: new FormData(formEdit)
+        });
+        if (res.status === 422) {
+            const j = await res.json(); throw new Error(Object.values(j.errors||{}).flat().join('<br>'));
         }
-        });
-    }
-
-    // ===== DELETE (SweetAlert confirm + AJAX) =====
-    window.delCategory = function(id){
-        Swal.fire({
-        title:'Yakin hapus?', text:'Tindakan ini tidak bisa dibatalkan.',
-        icon:'warning', showCancelButton:true, confirmButtonText:'Ya, hapus', cancelButtonText:'Batal'
-        }).then(async r=>{
-        if (!r.isConfirmed) return;
-        const url = "{{ route('categories.destroy', ':id') }}".replace(':id', id);
-        const res = await fetch(url, { method:'POST', headers:{'X-CSRF-TOKEN': CSRF, 'X-HTTP-Method-Override':'DELETE'} });
-        let j; try { j = await res.json(); } catch { j = null; }
-        toast(j?.success || 'Kategori dihapus');
+        await res.json().catch(()=> ({}));
+        (bootstrap.Modal.getInstance(modalEdit) || new bootstrap.Modal(modalEdit)).hide();
         DT.ajax.reload(null,false);
+        toast('Category updated');
+        } catch (err) {
+        Swal.fire({icon:'error', title:'Error', html: err.message || 'Failed'});
+        } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bx bx-save"></i> Save'; }
+        }
+    });
+
+    // DELETE
+    window.delCategory = async function(id){
+        const ask = await Swal.fire({icon:'warning', title:'Yakin hapus?', text:'Tindakan ini tidak bisa dibatalkan.', showCancelButton:true, confirmButtonText:'Ya, hapus', cancelButtonText:'Batal'});
+        if (!ask.isConfirmed) return;
+        await fetch("{{ route('categories.destroy', ':id') }}".replace(':id', id), {
+        method:'POST', headers:{'X-CSRF-TOKEN': CSRF, 'X-HTTP-Method-Override':'DELETE'}
         });
+        DT.ajax.reload(null,false);
+        toast('Category deleted');
     };
     })();
     </script>

@@ -3,79 +3,48 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Auth\Authenticat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Str;
 
 class LoginController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('guest')->except('logout');
-    }
-
     public function showLoginForm()
     {
-        // Jika sudah login, redirect sesuai role
-        if (Auth::check()) {
-            $user = Auth::user();
-            return match($user->role) {
-                'admin' => redirect('/admin/indexAdmin'),
-                'warehouse' => redirect('/welcome'),
-                default => redirect('/login'),
-            };
-        }
-
-        return view('auth.login'); // sesuaikan dengan blade lo
+        return view('auth.login');
     }
 
-    protected function throttleKey(Request $request)
+    public function attempt(Request $request)
     {
-        return Str::lower($request->input('login')) . '|' . $request->ip();
-    }
-
-    public function login(Request $request)
-    {
-        $request->validate([
+        $credentials = $request->validate([
             'login' => 'required|string',
             'password' => 'required|string',
-            'remember' => 'sometimes|boolean',
         ]);
 
-        $throttleKey = $this->throttleKey($request);
+        $remember = $request->filled('remember');
 
-        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            throw ValidationException::withMessages([
-                'login' => ['Too many login attempts. Please try again later.'],
-            ])->status(429);
-        }
+        // Boleh login pakai username atau email
+        $login_type = filter_var($credentials['login'], FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
 
-        $login = $request->input('login');
-        $password = $request->input('password');
-        $remember = (bool) $request->filled('remember');
-
-        $field = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'name';
-        $credentials = [$field => $login, 'password' => $password];
-
-        if (Auth::attempt($credentials, $remember)) {
-            RateLimiter::clear($throttleKey);
+        if (Auth::attempt([$login_type => $credentials['login'], 'password' => $credentials['password']], $remember)) {
             $request->session()->regenerate();
 
             $user = Auth::user();
-            return match($user->role) {
-                'admin' => redirect()->intended('/admin/indexAdmin'),
-                'warehouse' => redirect()->intended('/welcome'),
-                default => redirect()->intended('/login'),
-            };
+            switch ($user->role) {
+                case 'admin':
+                    return redirect()->route('admin.dashboard');
+                case 'warehouse':
+                    return redirect()->route('warehouse.dashboard');
+                case 'sales':
+                    return redirect()->route('sales.dashboard');
+                default:
+                    Auth::logout();
+                    return redirect()->route('login')->with('error', 'Role tidak dikenali.');
+            }
         }
 
-        RateLimiter::hit($throttleKey, 60);
-
         throw ValidationException::withMessages([
-            'login' => ['Name/email atau password salah.'],
+            'login' => __('Nama/email atau password salah.'),
         ]);
     }
 
@@ -84,7 +53,6 @@ class LoginController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-
-        return redirect()->route('login')->with('status', 'Kamu sudah logout.');
+        return redirect()->route('login')->with('status', 'Anda telah logout.');
     }
 }

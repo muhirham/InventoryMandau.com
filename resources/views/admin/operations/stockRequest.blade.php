@@ -110,9 +110,12 @@
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
         <script>
-        const ENDPOINT     = "{{ route('restocks.json') }}";
-        const APPROVE_URL  = id => "{{ url('restocks') }}/" + id + "/approve";
-        const REJECT_URL   = id => "{{ url('restocks') }}/" + id + "/reject";
+        const ENDPOINT    = "{{ route('stockRequest.json') }}";
+        const APPROVE_URL = id => "{{ route('stockRequest.approve', ':id') }}".replace(':id', id);
+        const REJECT_URL  = id => "{{ route('stockRequest.reject', ':id') }}".replace(':id', id);
+        // kalau pakai bulk PO:
+        const BULK_PO_URL = "{{ route('stockRequest.bulkpo') }}";
+
 
         let state = {
         page:1, per_page:10, status:'', supplier_id:'',
