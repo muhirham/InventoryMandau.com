@@ -3,7 +3,7 @@
     @section('content')
     @php
     /** @var \App\Models\User $me */
-    $isWarehouseUser = ($me?->role === 'warehouse');
+    $isWarehouseUser = $me?->hasRole('warehouse');
     @endphp
 
     <div class="container-xxl flex-grow-1 container-p-y">
@@ -16,9 +16,9 @@
             <label class="form-label mb-1">Role</label>
             <select id="f_role" class="form-select">
                 <option value="">Select Role</option>
-                <option value="Admin">Admin</option>
-                <option value="Warehouse">Warehouse</option>
-                <option value="Sales">Sales</option>
+                @foreach($allRoles as $r)
+                <option value="{{ $r->name }}">{{ $r->name }}</option>
+                @endforeach
             </select>
             </div>
             <div class="col-12 col-md-4">
@@ -72,56 +72,65 @@
         <table id="tblUsers" class="table table-hover align-middle mb-0">
             <thead>
             <tr>
-                <th style="width:36px"><input class="form-check-input" type="checkbox" id="checkAll"></th>
-                <th>ID</th>
-                <th>NAME</th>
-                <th>USERNAME</th>
-                <th>EMAIL</th>
-                <th>ROLE</th>
-                <th>WAREHOUSE</th>
-                <th>STATUS</th>
-                <th>CREATED</th>
-                <th>UPDATED</th>
-                <th style="width:120px">ACTIONS</th>
+            <th style="width:36px"><input class="form-check-input" type="checkbox" id="checkAll"></th>
+            <th>ID</th>
+            <th>NAME</th>
+            <th>USERNAME</th>
+            <th>EMAIL</th>
+            <th>PHONE</th>
+            <th>ROLES</th>
+            <th>WAREHOUSE</th>
+            <th>STATUS</th>
+            <th>CREATED</th>
+            <th>UPDATED</th>
+            <th style="width:120px">ACTIONS</th>
             </tr>
             </thead>
             <tbody>
             @forelse($users as $u)
-                <tr>
+            @php
+                $roleSlugs = $u->roles->pluck('slug')->all();
+                $roleNames = $u->roles->pluck('name')->all();
+                $roleText  = implode(', ', $roleNames);
+                $rolesAttr = implode(',', $roleSlugs);
+            @endphp
+            <tr>
                 <td><input class="form-check-input row-check" type="checkbox"></td>
                 <td>{{ $u->id }}</td>
                 <td>{{ $u->name }}</td>
                 <td>{{ $u->username }}</td>
                 <td>{{ $u->email }}</td>
-                <td>{{ ucfirst($u->role) }}</td>
+                <td>{{ $u->phone ?? '-' }}</td>
+                <td>{{ $roleText ?: '-' }}</td>
                 <td>{{ $u->warehouse?->warehouse_name ?? '-' }}</td>
                 <td>{{ ucfirst($u->status) }}</td>
                 <td>{{ $u->created_at?->format('Y-m-d') }}</td>
                 <td>{{ $u->updated_at?->format('Y-m-d H:i') }}</td>
                 <td>
-                    <div class="d-flex gap-1">
+                <div class="d-flex gap-1">
                     <a href="#" class="btn btn-sm btn-icon btn-outline-secondary js-edit"
-                        title="Edit"
-                        data-id="{{ $u->id }}"
-                        data-name="{{ $u->name }}"
-                        data-username="{{ $u->username }}"
-                        data-email="{{ $u->email }}"
-                        data-role="{{ $u->role }}"
-                        data-status="{{ $u->status }}"
-                        data-warehouse_id="{{ $u->warehouse_id ?? '' }}">
-                        <i class="bx bx-edit-alt"></i>
+                    title="Edit"
+                    data-id="{{ $u->id }}"
+                    data-name="{{ $u->name }}"
+                    data-username="{{ $u->username }}"
+                    data-email="{{ $u->email }}"
+                    data-phone="{{ $u->phone }}"
+                    data-roles="{{ $rolesAttr }}"
+                    data-status="{{ $u->status }}"
+                    data-warehouse_id="{{ $u->warehouse_id ?? '' }}">
+                    <i class="bx bx-edit-alt"></i>
                     </a>
                     <a href="#" class="btn btn-sm btn-icon btn-outline-danger js-del"
-                        title="Delete"
-                        data-id="{{ $u->id }}"
-                        data-name="{{ $u->name }}">
-                        <i class="bx bx-trash"></i>
+                    title="Delete"
+                    data-id="{{ $u->id }}"
+                    data-name="{{ $u->name }}">
+                    <i class="bx bx-trash"></i>
                     </a>
-                    </div>
+                </div>
                 </td>
-                </tr>
+            </tr>
             @empty
-                <tr><td colspan="11" class="text-center text-muted">No data</td></tr>
+            <tr><td colspan="12" class="text-center text-muted">No data</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -153,6 +162,7 @@
 
         <form id="formAddUser" method="POST" action="{{ route('users.store') }}" class="modal-body text-white">
             @csrf
+
             <div class="mb-3">
             <label class="form-label text-white">Name</label>
             <input name="name" value="{{ old('name') }}" class="form-control bg-transparent text-white border-secondary" required>
@@ -168,17 +178,24 @@
             <input name="email" type="email" value="{{ old('email') }}" class="form-control bg-transparent text-white border-secondary" required>
             </div>
 
+            <div class="mb-3">
+            <label class="form-label text-white">Phone</label>
+            <input name="phone" value="{{ old('phone') }}" class="form-control bg-transparent text-white border-secondary">
+            </div>
+
             <div class="row g-2">
             <div class="col-md-6">
-                <label class="form-label text-white">Role</label>
+                <label class="form-label text-white">Roles</label>
                 @if($isWarehouseUser)
-                <input type="hidden" name="role" value="sales">
+                <input type="hidden" name="roles[]" value="sales">
                 <input class="form-control bg-transparent text-white border-secondary" value="Sales" disabled>
                 @else
-                <select name="role" id="add_role" class="form-select bg-transparent text-white border-secondary" required>
-                    <option value="" selected disabled hidden>— Select role —</option>
-                    @foreach ($allowedRoles as $r)
-                    <option value="{{ $r }}">{{ ucfirst($r) }}</option>
+                <select name="roles[]" id="add_roles" class="form-select bg-transparent text-white border-secondary" required>
+                    <option value="">— Choose role —</option>
+                    @foreach ($allRoles as $r)
+                    <option value="{{ $r->slug }}" {{ (old('roles.0') == $r->slug) ? 'selected' : '' }}>
+                        {{ $r->name }}
+                    </option>
                     @endforeach
                 </select>
                 @endif
@@ -186,8 +203,8 @@
             <div class="col-md-6">
                 <label class="form-label text-white">Status</label>
                 <select name="status" class="form-select bg-transparent text-white border-secondary" required>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="active"  {{ old('status')==='active' ? 'selected':'' }}>Active</option>
+                <option value="inactive"{{ old('status')==='inactive' ? 'selected':'' }}>Inactive</option>
                 </select>
             </div>
             </div>
@@ -202,7 +219,9 @@
                 <select name="warehouse_id" class="form-select bg-transparent text-white border-secondary">
                 <option value="">— Choose warehouse —</option>
                 @foreach($warehouses as $w)
-                    <option value="{{ $w->id }}">{{ $w->warehouse_name }}</option>
+                    <option value="{{ $w->id }}" {{ old('warehouse_id') == $w->id ? 'selected':'' }}>
+                    {{ $w->warehouse_name }}
+                    </option>
                 @endforeach
                 </select>
             @endif
@@ -255,16 +274,21 @@
             <input id="edit_email" name="email" type="email" class="form-control bg-transparent text-white border-secondary" required>
             </div>
 
+            <div class="mb-3">
+            <label class="form-label text-white">Phone</label>
+            <input id="edit_phone" name="phone" class="form-control bg-transparent text-white border-secondary">
+            </div>
+
             <div class="row g-2">
             <div class="col-md-6">
-                <label class="form-label text-white">Role</label>
+                <label class="form-label text-white">Roles</label>
                 @if($isWarehouseUser)
-                <input type="hidden" name="role" id="edit_role" value="sales">
+                <input type="hidden" name="roles[]" id="edit_roles_force" value="sales">
                 <input class="form-control bg-transparent text-white border-secondary" value="Sales" disabled>
                 @else
-                <select id="edit_role" name="role" class="form-select bg-transparent text-white border-secondary" required>
-                    @foreach(['admin','warehouse','sales'] as $r)
-                    <option value="{{ $r }}">{{ ucfirst($r) }}</option>
+                <select id="edit_roles" name="roles[]" class="form-select bg-transparent text-white border-secondary" required>
+                    @foreach($allRoles as $r)
+                    <option value="{{ $r->slug }}">{{ $r->name }}</option>
                     @endforeach
                 </select>
                 @endif
@@ -315,9 +339,7 @@
     @endsection
 
     @push('styles')
-        <style>
-                    .swal2-container { z-index: 20000 !important; }
-        </style>
+    <style>.swal2-container { z-index: 20000 !important; }</style>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
     @endpush
 
@@ -332,7 +354,7 @@
     const table = $('#tblUsers').DataTable({
         order: [[1,'asc']],
         columnDefs: [
-        { targets: [0,10], orderable:false },
+        { targets: [0,11], orderable:false },
         { targets: 1, type: 'num' }
         ],
         pageLength: 10,
@@ -345,22 +367,26 @@
     $('#searchUser').on('keyup', function(){ table.search(this.value).draw(); });
     $('#pageLength').on('change', function(){ table.page.len(parseInt(this.value,10)).draw(); });
 
+    // filter by role (column index 6) – pakai nama role
     $('#f_role').on('change', function(){
-        const v = this.value; // Admin/Warehouse/Sales
-        table.column(5).search(v ? '^'+v+'$' : '', true, false).draw();
+        const v = this.value;
+        table.column(6).search(v ? v : '', true, false).draw();
     });
+
+    // filter by status (column index 8)
     $('#f_status').on('change', function(){
-        const v = this.value; // Active/Inactive
-        table.column(7).search(v ? '^'+v+'$' : '', true, false).draw();
+        const v = this.value;
+        table.column(8).search(v ? '^'+v+'$' : '', true, false).draw();
     });
 
     $('#checkAll').on('change', function(){
         $('#tblUsers tbody .row-check').prop('checked', this.checked);
     });
 
+    // Export CSV
     $('#btnExportCSV').on('click', function(e){
         e.preventDefault();
-        const headers = ['ID','Name','Username','Email','Role','Warehouse','Status','Created','Updated'];
+        const headers = ['ID','Name','Username','Email','Phone','Roles','Warehouse','Status','Created','Updated'];
         let csv = headers.join(',') + '\n';
         $('#tblUsers tbody tr:visible').each(function(){
         const t = $(this).find('td');
@@ -374,6 +400,7 @@
             t.eq(7).text().trim(),
             t.eq(8).text().trim(),
             t.eq(9).text().trim(),
+            t.eq(10).text().trim()
         ].join(',') + '\n';
         });
         const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}), url = URL.createObjectURL(blob);
@@ -383,37 +410,36 @@
 
     $('#btnExportPrint').on('click', function(e){ e.preventDefault(); window.print(); });
 
-    // ====== ADD: toggle warehouse field ======
+    // ====== ADD: toggle warehouse (dropdown) ======
     function toggleAddWarehouse() {
         @if($isWarehouseUser)
-        $('#wrap_add_wh').show();
-        return;
+        $('#wrap_add_wh').show(); return;
         @endif
-        const role = $('#add_role').val();
-        const need = (role === 'warehouse' || role === 'sales');
+        const val = $('#add_roles').val();
+        const vals = val ? [val] : [];
+        const need = vals.includes('warehouse') || vals.includes('sales');
         $('#wrap_add_wh').toggle(need);
         if (!need) $('#wrap_add_wh select').val('');
     }
-    $('#add_role').on('change', toggleAddWarehouse);
+    $('#add_roles').on('change', toggleAddWarehouse);
     toggleAddWarehouse();
 
     // ====== EDIT modal ======
     const modalEl = document.getElementById('glassEditUser');
     const modal   = modalEl ? new bootstrap.Modal(modalEl) : null;
     const form    = document.getElementById('formEditUser');
-    const baseUrl = @json(url('users'));
+    const baseUrl = @json(url('admin/users'));
 
     function toggleEditWarehouse() {
         @if($isWarehouseUser)
-        $('#wrap_edit_wh').show();
-        return;
+        $('#wrap_edit_wh').show(); return;
         @endif
-        const role = $('#edit_role').val();
-        const need = (role === 'warehouse' || role === 'sales');
+        const val = $('#edit_roles').val();
+        const vals = val ? [val] : [];
+        const need = vals.includes('warehouse') || vals.includes('sales');
         $('#wrap_edit_wh').toggle(need);
         if (!need) $('#edit_warehouse_id').val('');
     }
-    $('#edit_role').on('change', toggleEditWarehouse);
 
     $(document).on('click', '.js-edit', function(e){
         e.preventDefault();
@@ -423,9 +449,13 @@
         $('#edit_name').val(d.name || '');
         $('#edit_username').val(d.username || '');
         $('#edit_email').val(d.email || '');
+        $('#edit_phone').val(d.phone || '');
+
         @if(!$isWarehouseUser)
-        $('#edit_role').val(d.role || 'sales');
+        const roles = (d.roles || '').split(',').filter(Boolean);
+        $('#edit_roles').val(roles[0] || '');
         @endif
+
         $('#edit_status').val(d.status || 'active');
         $('#edit_warehouse_id').val(d.warehouse_id || '');
         toggleEditWarehouse();
@@ -434,6 +464,8 @@
         form.querySelector('input[name="password_confirmation"]').value = '';
         modal?.show();
     });
+
+    $('#edit_roles').on('change', toggleEditWarehouse);
 
     // ====== DELETE single ======
     $('#tblUsers').on('click', '.js-del', function(e){
@@ -450,10 +482,7 @@
             method: 'DELETE',
             headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'}
         }).then(async r => {
-            if (!r.ok) {
-            const tx = await r.text();
-            throw new Error(tx || 'Gagal menghapus.');
-            }
+            if (!r.ok) { const tx = await r.text(); throw new Error(tx || 'Gagal menghapus.'); }
             location.reload();
         }).catch(err => Swal.fire('Error', err.message || 'Gagal menghapus.','error'));
         });
@@ -461,12 +490,16 @@
 
     // ====== BULK DELETE ======
     function getCheckedIds(){
-        const ids=[]; $('#tblUsers tbody tr').each(function(){
+        const ids=[];
+        $('#tblUsers tbody tr').each(function(){
         if ($(this).find('.row-check').is(':checked')) {
-            const id = $(this).find('td').eq(1).text().trim(); if (id) ids.push(Number(id));
+            const id = $(this).find('td').eq(1).text().trim();
+            if (id) ids.push(Number(id));
         }
-        }); return ids;
+        });
+        return ids;
     }
+
     $('#btnBulkDelete').on('click', function(e){
         e.preventDefault();
         const ids = getCheckedIds();

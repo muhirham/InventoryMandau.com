@@ -17,14 +17,37 @@ class ProductController extends Controller
 {
     private string $codePrefix = 'PRD-';
 
-    public function index()
+public function index()
     {
-        $categories = Category::select('id','category_name')->orderBy('category_name')->get();
-        $suppliers  = Supplier::select('id','name')->orderBy('name')->get();
-        $packages   = Package::select('id','package_name')->orderBy('package_name')->get();
+        // data buat filter & form
+        $categories = Category::select('id','category_name')
+            ->orderBy('category_name')
+            ->get();
+
+        $suppliers  = Supplier::select('id','name')
+            ->orderBy('name')
+            ->get();
+
+        $packages   = Package::select('id','package_name')
+            ->orderBy('package_name')
+            ->get();
+
         $nextProductCode = $this->generateNextCode();
 
-        return view('admin.masterdata.products', compact('categories','suppliers','packages','nextProductCode'));
+        // === SUMMARY: ambil langsung dari DB ===
+        $productCount  = Product::count();      // total baris di tabel products
+        $categoryCount = Category::count();     // total kategori
+        $supplierCount = Supplier::count();     // total supplier
+
+        return view('admin.masterdata.products', compact(
+            'categories',
+            'suppliers',
+            'packages',
+            'nextProductCode',
+            'productCount',
+            'categoryCount',
+            'supplierCount'
+        ));
     }
 
     public function datatable(Request $request)

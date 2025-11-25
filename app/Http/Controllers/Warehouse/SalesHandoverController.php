@@ -12,7 +12,36 @@ namespace App\Http\Controllers\Warehouse;
         class SalesHandoverController extends Controller
         {
         /** Halaman report & list */
-        public function index() { return view('wh.sales_report'); }
+        public function index() { 
+            return view('wh.sales_report'); 
+        }
+
+
+        public function items(SalesHandover $handover)
+                {
+                    // batasi akses per gudang (kalau user nempel ke gudang tertentu)
+                    $me = auth()->user();
+                    if ($me->warehouse_id && $handover->warehouse_id != $me->warehouse_id) {
+                        abort(403);
+                    }
+
+                    $items = $handover->items()
+                        ->with(['product:id,name'])
+                        ->get()
+                        ->map(function ($x) {
+                            return [
+                                'product_id'           => $x->product_id,
+                                'product_name'         => $x->product->name ?? ('Produk #'.$x->product_id),
+                                'qty_dispatched'       => (int) $x->qty_dispatched,
+                                'qty_returned_good'    => (int) $x->qty_returned_good,
+                                'qty_returned_damaged' => (int) $x->qty_returned_damaged,
+                                'qty_sold'             => (int) $x->qty_sold,
+                            ];
+                        });
+
+                    return response()->json(['items' => $items]);
+                }
+
 
         /** Pagi: buat handover + geser stok WH -> SALES */
         public function issue(Request $r)

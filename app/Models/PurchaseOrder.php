@@ -3,6 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\PurchaseOrderItem;
+use App\Models\Supplier;
+use App\Models\User;
+
+
 
 class PurchaseOrder extends Model
 {
@@ -15,10 +20,12 @@ class PurchaseOrder extends Model
         'ordered_at' => 'datetime',
     ];
 
-    public function items()
-    {
-        return $this->hasMany(PurchaseOrderItem::class);
-    }
+
+public function items()
+{
+    return $this->hasMany(PurchaseOrderItem::class, 'purchase_order_id');
+}
+
 
     public function supplier()
     {
@@ -61,4 +68,21 @@ class PurchaseOrder extends Model
         if ($this->items->contains(fn($i)=> $i->qty_received > 0) ) return 'partially_received';
         return $this->status;
     }
+    public function restockReceipts()
+        {
+            return $this->hasMany(RestockReceipt::class, 'purchase_order_id');
+        }
+
+        public function grDeleteRequests()
+        {
+            return $this->hasMany(GrDeleteRequest::class);
+        }
+
+    // >>> INI YANG BELUM ADA (PENYEBAB ERROR) <<<
+    public function warehouse()
+    {
+        // asumsi kolom di tabel purchase_orders = warehouse_id (nullable)
+        return $this->belongsTo(Warehouse::class);
+    }
+
 }

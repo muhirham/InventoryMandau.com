@@ -9,16 +9,15 @@ return new class extends Migration {
         Schema::create('restock_receipts', function (Blueprint $t) {
             $t->id();
             // hubungan ke request_restocks / restocks (tanpa FK biar fleksibel)
-            $t->unsignedBigInteger('request_id')->index();     // id dari request restock
-            $t->unsignedBigInteger('warehouse_id')->index();
+            $t->unsignedBigInteger('request_id')->nullable()->index();       // id dari request restock
+            $t->unsignedBigInteger('warehouse_id')->nullable()->index();
             $t->unsignedBigInteger('supplier_id')->nullable()->index();
             $t->unsignedBigInteger('product_id')->index();
 
             $t->string('code', 30)->unique();                  // GRN code: GR-202511-0001
             $t->unsignedInteger('qty_requested')->default(0);
             $t->unsignedInteger('qty_good')->default(0);       // yang layak masuk stok
-            $t->unsignedInteger('qty_damaged')->default(0);    // yang rusak/tidak layak
-            $t->decimal('cost_per_item', 12, 2)->nullable();   // opsional
+            $t->unsignedInteger('qty_damaged')->default(0);    // yang rusak/tidak layak  // opsional
             $t->text('notes')->nullable();
 
             $t->unsignedBigInteger('received_by')->nullable(); // user penerima

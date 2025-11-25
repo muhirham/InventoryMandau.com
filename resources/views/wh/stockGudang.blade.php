@@ -13,11 +13,15 @@
   <div class="card mb-3">
     <div class="card-body">
       <div class="row g-2 align-items-end">
+
+        {{-- Search global --}}
         <div class="col-12 col-md-4">
           <label class="form-label mb-1">Pencarian</label>
-          <input id="searchBox" type="text" class="form-control" placeholder="Cari produk/kode/kategori/supplier…">
+          <input id="searchBox" type="text" class="form-control"
+                 placeholder="Cari produk/kode/kategori/supplier…">
         </div>
 
+        {{-- page length --}}
         <div class="col-6 col-md-2">
           <label class="form-label mb-1">Show</label>
           <select id="pageLength" class="form-select">
@@ -27,23 +31,29 @@
           </select>
         </div>
 
-        @if($me->role === 'admin')
-          <div class="col-12 col-md-4 ms-auto">
-            <label class="form-label mb-1">Warehouse</label>
-            <select id="warehouse_id" class="form-select">
+        {{-- Warehouse filter --}}
+        <div class="col-12 col-md-4 ms-auto">
+          <label class="form-label mb-1">Warehouse</label>
+
+          @if(!empty($canSwitchWarehouse) && $canSwitchWarehouse)
+            {{-- Superadmin / Admin pusat: bebas pilih gudang --}}
+            <select id="filterWarehouse" class="form-select">
               <option value="">— Semua —</option>
               @foreach($warehouses as $w)
-                <option value="{{ $w->id }}" @selected(($selectedWarehouseId ?? null)===$w->id)>{{ $w->warehouse_name }}</option>
+                <option value="{{ $w->id }}"
+                  @selected(($selectedWarehouseId ?? null) == $w->id)>
+                  {{ $w->warehouse_name }}
+                </option>
               @endforeach
             </select>
-          </div>
-        @else
-          {{-- info gudang user --}}
-          <div class="col-12 col-md-4 ms-auto">
-            <label class="form-label mb-1">Warehouse</label>
-            <input class="form-control" value="{{ $me->warehouse?->warehouse_name ?? '-' }}" disabled>
-          </div>
-        @endif
+          @else
+            {{-- Admin WH / user lain: hanya lihat gudang miliknya --}}
+            <input class="form-control"
+                   value="{{ $me->warehouse?->warehouse_name ?? '-' }}"
+                   disabled>
+          @endif
+        </div>
+
       </div>
     </div>
   </div>
@@ -72,7 +82,8 @@
 @endsection
 
 @push('styles')
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet"
+      href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
 <style>
   /* Biar nggak perlu scroll horizontal */
   #tblStock td, #tblStock th { white-space: nowrap; }
@@ -89,36 +100,52 @@
 
 <script>
 $(function () {
-  const dtUrl = @json(route('StockLevel.datatable'));
+  const dtUrl            = @json(route('stocklevel.datatable'));
+  const CAN_SWITCH_WH    = @json($canSwitchWarehouse ?? false);
+  const USER_WAREHOUSE_ID= @json($me->warehouse_id ?? null);
 
   const table = $('#tblStock').DataTable({
     processing: true,
     serverSide: true,
+    lengthChange: false,
     ajax: {
       url: dtUrl,
       type: 'GET',
-      // Kalau admin mau filter warehouse: kirimkan di sini
-      // data: d => { d.warehouse_id = $('#warehouseSelect').val() || ''; }
+      data: function(d){
+        if (CAN_SWITCH_WH) {
+          // superadmin/admin pusat: ambil dari dropdown
+          d.warehouse_id = $('#filterWarehouse').val() || '';
+        } else {
+          // admin WH: pakai warehouse dia sendiri
+          d.warehouse_id = USER_WAREHOUSE_ID || '';
+        }
+      }
     },
     order: [[1, 'asc']], // by CODE
     columns: [
       { data: 'rownum', orderable:false, searchable:false },
       { data: 'product_code' },
-      { data: 'product_name' },   // alias 'name' juga ada, aman
+      { data: 'product_name' },
       { data: 'package_name' },
       { data: 'category_name' },
       { data: 'supplier_name' },
       { data: 'quantity', className:'text-end' }
-    ],
-    lengthChange: false,
-    dom: 'rt<"d-flex justify-content-between align-items-center p-2"ip>'
+    ]
   });
 
-  $('#searchBox').on('keyup change', function(){ table.search(this.value).draw(); });
-  $('#pageLength').on('change', function(){ table.page.len(parseInt(this.value||10,10)).draw(); });
+  if (CAN_SWITCH_WH) {
+    $('#filterWarehouse').on('change', function(){
+      table.ajax.reload();
+    });
+  }
 
-  // Kalau ada select warehouse:
-  // $('#warehouseSelect').on('change', () => table.ajax.reload());
+  $('#searchBox').on('keyup change', function(){
+    table.search(this.value).draw();
+  });
+
+  $('#pageLength').on('change', function(){
+    table.page.len(parseInt(this.value || 10,10)).draw();
+  });
 });
 </script>
 @endpush

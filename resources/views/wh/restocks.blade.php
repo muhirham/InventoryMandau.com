@@ -3,36 +3,82 @@
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
+@php
+    $me = $me ?? auth()->user();
+@endphp
+
 <div class="container-xxl flex-grow-1 container-p-y">
 
-  {{-- Toolbar --}}
+  {{-- FILTER BAR --}}
   <div class="card mb-3">
-    <div class="card-body d-flex flex-wrap align-items-center gap-2">
-      <div class="d-flex align-items-center gap-2">
-        <label class="text-muted">Show</label>
-        <select id="pageLength" class="form-select" style="width:90px">
-          <option value="10" selected>10</option>
-          <option value="25">25</option>
-          <option value="50">50</option>
-        </select>
-      </div>
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
 
-      <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
-        <input id="searchBox" class="form-control" placeholder="Cari restock...">
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#mdlAdd">
-          <i class="bx bx-plus"></i> Buat Request
-        </button>
+        {{-- SHOW --}}
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">Show</label>
+          <select id="pageLength" class="form-select">
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+
+        {{-- SEARCH BOX (custom) --}}
+        <div class="col-12 col-md-4">
+          <label class="form-label mb-1">Pencarian</label>
+          <input id="searchBox" type="text" class="form-control"
+                 placeholder="Cari restock...">
+        </div>
+
+        {{-- WAREHOUSE FILTER --}}
+        <div class="col-12 col-md-4 ms-md-auto">
+          <label class="form-label mb-1">Warehouse</label>
+
+          @if($canSwitchWarehouse)
+            {{-- superadmin / admin pusat: bisa pilih gudang --}}
+            <select id="filterWarehouse" class="form-select">
+              <option value="">— Semua —</option>
+              @foreach($warehouses as $w)
+                <option value="{{ $w->id }}"
+                    @selected(($selectedWarehouseId ?? null) == $w->id)>
+                  {{ $w->warehouse_name }}
+                </option>
+              @endforeach
+            </select>
+          @elseif($isWarehouseUser)
+            {{-- admin WH: terkunci ke gudangnya sendiri --}}
+            <input class="form-control"
+                   value="{{ $me->warehouse?->warehouse_name ?? '-' }}"
+                   disabled>
+            <input type="hidden" id="filterWarehouse"
+                   value="{{ $me->warehouse_id }}">
+          @else
+            {{-- fallback kalau role lain --}}
+            <input class="form-control" value="-" disabled>
+            <input type="hidden" id="filterWarehouse" value="">
+          @endif
+        </div>
+
+        {{-- BUTTON ADD --}}
+        <div class="col-12 col-md-auto mt-2 mt-md-0 text-md-end">
+          <button class="btn btn-primary" data-bs-toggle="modal"
+                  data-bs-target="#mdlAdd">
+            + Buat Request
+          </button>
+        </div>
+
       </div>
     </div>
   </div>
 
-  {{-- Table --}}
+  {{-- TABEL RESTOCK --}}
   <div class="card">
     <div class="table-responsive">
       <table id="tblRestocks" class="table table-hover align-middle mb-0">
         <thead>
           <tr>
-            <th>NO</th>
+            <th style="width:60px">NO</th>
             <th>CODE</th>
             <th>PRODUCT</th>
             <th>SUPPLIER</th>
@@ -40,7 +86,8 @@
             <th class="text-end">RCV</th>
             <th>STATUS</th>
             <th>DATE</th>
-            <th style="width:80px">ACTIONS</th>
+            <th>DESCRIPTION</th>
+            <th style="width:90px">ACTIONS</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -50,196 +97,384 @@
 
 </div>
 
-{{-- Modal Add --}}
+{{-- ========== MODAL ADD REQUEST ========== --}}
 <div class="modal fade" id="mdlAdd" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-    <div class="modal-header">
-      <h5 class="modal-title">Buat Request Restock</h5>
-      <button class="btn-close" data-bs-dismiss="modal"></button>
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buat Request Restock</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <form id="formAdd" method="POST" action="{{ route('restocks.store') }}">
+        @csrf
+        <div class="modal-body">
+
+          @if($canSwitchWarehouse)
+            <div class="mb-3">
+              <label class="form-label">Warehouse</label>
+              <select name="warehouse_id" class="form-select" required>
+                <option value="">— Pilih —</option>
+                @foreach($warehouses as $w)
+                  <option value="{{ $w->id }}">
+                    {{ $w->warehouse_name }}
+                  </option>
+                @endforeach
+              </select>
+            </div>
+          @endif
+
+          {{-- Tabel item RF --}}
+          <div class="table-responsive mb-2">
+            <table class="table align-middle" id="tblRfItems">
+              <thead>
+                <tr>
+                  <th style="width:40px">#</th>
+                  <th>Product</th>
+                  <th style="width:120px" class="text-end">Qty Request</th>
+                  <th>Catatan</th>
+                  <th style="width:40px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {{-- baris pertama --}}
+                <tr data-index="0">
+                  <td class="row-num">1</td>
+                  <td>
+                    <select name="items[0][product_id]" class="form-select form-select-sm" required>
+                      <option value="">— Pilih —</option>
+                      @foreach($products as $p)
+                        <option value="{{ $p->id }}">
+                          {{ $p->product_code }} — {{ $p->name }}
+                        </option>
+                      @endforeach
+                    </select>
+                  </td>
+                  <td>
+                    <input type="number" min="1"
+                           name="items[0][quantity_requested]"
+                           class="form-control form-control-sm text-end" value="1" required>
+                  </td>
+                  <td>
+                    <input type="text"
+                           name="items[0][note]"
+                           class="form-control form-control-sm"
+                           placeholder="Catatan (opsional)">
+                  </td>
+                  <td class="text-center">
+                    <button type="button"
+                            class="btn btn-xs btn-link text-danger btn-remove">&times;</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddRfRow">
+            <i class="bx bx-plus"></i> Tambah Item
+          </button>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary"
+                  data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
     </div>
-
-    <form id="formAdd" method="POST" action="{{ route('restocks.store') }}" class="modal-body">
-      @csrf
-      <div class="mb-3">
-        <label class="form-label">Supplier</label>
-        <select name="supplier_id" class="form-select" required>
-          <option value="">— Pilih —</option>
-          @foreach($suppliers as $s)
-            <option value="{{ $s->id }}">{{ $s->name }}</option>
-          @endforeach
-        </select>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Product</label>
-        <select name="product_id" class="form-select" required>
-          <option value="">— Pilih —</option>
-          @foreach($products as $p)
-            <option value="{{ $p->id }}">{{ $p->name }} ({{ $p->product_code }})</option>
-          @endforeach
-        </select>
-      </div>
-
-      <div class="row g-2">
-        <div class="col-md-6">
-          <label class="form-label">Qty Request</label>
-          <input id="req_qty" type="number" name="quantity_requested" class="form-control" min="1" required>
-          {{-- mirror agar kompatibel dgn kolom/validasi yg beda-beda --}}
-          <input id="req_qty_m1" type="hidden" name="qty">
-          <input id="req_qty_m2" type="hidden" name="quantity">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Cost/Item (opsional)</label>
-          <input type="number" name="cost_per_item" class="form-control" min="0" step="0.01">
-        </div>
-      </div>
-
-      <div class="mt-3">
-        <label class="form-label">Catatan (opsional)</label>
-        <textarea name="note" rows="2" class="form-control" placeholder="Keterangan…"></textarea>
-      </div>
-
-      <div class="mt-4 d-flex justify-content-end gap-2">
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-        <button class="btn btn-primary">Simpan</button>
-      </div>
-    </form>
-  </div></div>
+  </div>
 </div>
 
-{{-- Modal Receive --}}
+
+{{-- ========== MODAL RECEIVE BARANG (SIMPLE, TANPA SUMMARY) ========== --}}
 <div class="modal fade" id="mdlReceive" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-    <div class="modal-header">
-      <h5 class="modal-title">Terima Barang</h5>
-      <button class="btn-close" data-bs-dismiss="modal"></button>
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-1">
+        <div>
+          <h5 class="modal-title fw-bold mb-0">
+            Tanda Terima Barang Restock (GR)
+          </h5>
+          <div class="small text-muted">
+            Kode Restock: <span id="rcvCode">-</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <form id="formReceive" method="POST" enctype="multipart/form-data">
+        @csrf
+        <div class="modal-body pt-0">
+
+          {{-- TABEL INPUT GR --}}
+          <div class="mb-3">
+            <table class="table table-sm table-bordered mb-0">
+              <thead class="table-light">
+                <tr class="text-center">
+                  <th style="width:40px;">#</th>
+                  <th>Product</th>
+                  <th>Supplier</th>
+                  <th style="width:110px;">Qty Requested</th>
+                  <th style="width:130px;">Qty Received (sebelumnya)</th>
+                  <th style="width:110px;">Qty Remaining</th>
+                  <th style="width:110px;">Qty Good</th>
+                  <th style="width:120px;">Qty Damaged</th>
+                  <th style="width:160px;">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="text-center">1</td>
+                  <td>
+                    <span id="rcvProductRow">-</span><br>
+                    <small class="text-muted" id="rcvProductCodeRow"></small>
+                  </td>
+                  <td>
+                    <span id="rcvSupplierRow">-</span>
+                  </td>
+                  <td class="text-center">
+                    <span id="tblQtyReq">0</span>
+                  </td>
+                  <td class="text-center">
+                    <span id="tblQtyRcvBefore">0</span>
+                  </td>
+                  <td class="text-center fw-semibold">
+                    <span id="tblQtyRemaining">0</span>
+                  </td>
+                  <td>
+                    <input type="number" min="0" value="0"
+                           name="qty_good"
+                           class="form-control form-control-sm text-end"
+                           id="inpQtyGood" required>
+                  </td>
+                  <td>
+                    <input type="number" min="0" value="0"
+                           name="qty_damaged"
+                           class="form-control form-control-sm text-end"
+                           id="inpQtyDamaged">
+                  </td>
+                  <td>
+                    <input type="text"
+                           name="notes"
+                           class="form-control form-control-sm"
+                           placeholder="Catatan penerimaan (opsional)">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <small class="text-muted">
+              Qty Good + Qty Damaged tidak boleh lebih besar dari
+              <strong>Qty Remaining</strong>.
+            </small>
+          </div>
+
+          {{-- FOTO BARANG GOOD --}}
+          <div class="mb-3">
+            <label class="form-label text-uppercase small fw-semibold">
+              Upload Foto Barang Bagus (opsional)
+            </label>
+            <input type="file" name="photos_good[]" class="form-control" multiple accept="image/*">
+            <div class="form-text">
+              Upload foto barang dalam kondisi baik (mis. tampilan karton, isi, dsb). Maks 8MB per file.
+            </div>
+          </div>
+
+          {{-- FOTO BARANG RUSAK --}}
+          <div class="mb-3">
+            <label class="form-label text-uppercase small fw-semibold">
+              Upload Foto Barang Rusak (opsional)
+            </label>
+            <input type="file" name="photos_damaged[]" class="form-control" multiple accept="image/*">
+            <div class="form-text">
+              Jika ada kerusakan, lampirkan foto detail kerusakan. Maks 8MB per file.
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Goods Received</button>
+        </div>
+      </form>
     </div>
-
-    <form id="formReceive" method="POST" enctype="multipart/form-data">
-      @csrf
-      <div class="modal-body">
-        <div class="mb-2 small text-muted">
-          <div>Kode: <b id="rcv_code">-</b></div>
-          <div>Product: <b id="rcv_product">-</b></div>
-          <div>Supplier: <b id="rcv_supplier">-</b></div>
-          <div>Qty Request: <b id="rcv_qreq">0</b></div>
-        </div>
-
-        <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label">Qty Diterima (Good)</label>
-            <input type="number" name="qty_good" id="rcv_qty_good" class="form-control" min="0" required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Qty Rusak</label>
-            <input type="number" name="qty_damaged" id="rcv_qty_bad" class="form-control" min="0" value="0">
-          </div>
-        </div>
-
-        <div class="row g-2 mt-1">
-          <div class="col-md-6">
-            <label class="form-label">Cost/Item (opsional)</label>
-            <input type="number" step="0.01" name="cost_per_item" class="form-control" min="0">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Bukti Foto (opsional)</label>
-            <input type="file" name="photos[]" class="form-control" accept="image/*" multiple>
-            <div class="form-text">Upload foto barang rusak / selisih.</div>
-          </div>
-        </div>
-
-        <div class="mt-3">
-          <label class="form-label">Catatan (opsional)</label>
-          <textarea name="notes" rows="2" class="form-control" placeholder="Catatan penerimaan…"></textarea>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-primary">Simpan Penerimaan</button>
-      </div>
-    </form>
-  </div></div>
+  </div>
 </div>
+
 @endsection
 
 @push('styles')
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet"
+      href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+<style>
+  #tblRestocks td, #tblRestocks th { white-space: nowrap; }
+  @media (max-width: 992px){
+    #tblRestocks td, #tblRestocks th { white-space: normal; }
+  }
+</style>
 @endpush
 
 @push('scripts')
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-$(function(){
-  $('#formAdd').on('submit', function(){
-    const v = $('#req_qty').val();
-    $('#req_qty_m1').val(v);
-    $('#req_qty_m2').val(v);
-  });
 
+<script>
+$(function () {
   const dtUrl = @json(route('restocks.datatable'));
 
   const table = $('#tblRestocks').DataTable({
     processing: true,
     serverSide: true,
     lengthChange: false,
-    dom: 'rt<"d-flex justify-content-between align-items-center p-2"ip>',
     ajax: {
       url: dtUrl,
       type: 'GET',
-      error: function(xhr){
-        console.error('DT ajax error:', xhr.responseText || xhr.statusText);
-        Swal.fire('Error','Gagal memuat data restock.','error');
+      data: function (d) {
+        d.warehouse_id = $('#filterWarehouse').val() || '';
       }
     },
-    order: [[1,'desc']],
+    order: [[1, 'desc']], // CODE desc
     columns: [
-      { data: 'rownum', orderable:false, searchable:false, defaultContent:'-' },
-      { data: 'code', defaultContent:'-' },
-      { data: 'product', defaultContent:'-' },
-      { data: 'supplier', defaultContent:'-' },
-      { data: 'qty_req', className:'text-end', defaultContent:'0' },
-      { data: 'qty_rcv', className:'text-end', defaultContent:'0' },
-      { data: 'status', orderable:false, searchable:false, defaultContent:'-' },
-      { data: 'created_at', defaultContent:'-' },
-      { data: 'actions', orderable:false, searchable:false, defaultContent:'' }
+      { data: 'rownum',     orderable: false, searchable: false },
+      { data: 'code' },
+      { data: 'product' },
+      { data: 'supplier' },
+      { data: 'qty_req',    className: 'text-end' },
+      { data: 'qty_rcv',    className: 'text-end' },
+      { data: 'status',     orderable: false, searchable: false },
+      { data: 'created_at' },
+      { data: 'note' },
+      { data: 'actions',    orderable: false, searchable: false }
     ]
   });
 
-  $('#searchBox').on('keyup change', function(){ table.search(this.value).draw(); });
-  $('#pageLength').on('change', function(){ table.page.len(parseInt(this.value||10,10)).draw(); });
+  // ganti warehouse -> reload
+  $('#filterWarehouse').on('change', function () {
+    table.ajax.reload();
+  });
 
-  // Buka modal Receive
-  $(document).on('click', '.js-receive', function(e){
-    e.preventDefault();
-    const d = this.dataset;
+  // custom search box
+  $('#searchBox').on('keyup change', function () {
+    table.search(this.value).draw();
+  });
 
-    $('#rcv_code').text(d.code || '-');
-    $('#rcv_product').text(d.product || '-');
-    $('#rcv_supplier').text(d.supplier || '-');
-    $('#rcv_qreq').text(d.qty_req || '0');
+  // page length
+  $('#pageLength').on('change', function () {
+    table.page.len(parseInt(this.value || 10, 10)).draw();
+  });
 
-    const qreq = parseInt(d.qty_req || '0', 10);
-    const qrcv = parseInt(d.qty_rcv || '0', 10);
-    const sisa = Math.max(qreq - qrcv, 0);
-    $('#rcv_qty_good').val(sisa || 0);
-    $('#rcv_qty_bad').val(0);
+  // ========= HANDLE RECEIVE BUTTON =========
+  $(document).on('click', '.js-receive', function () {
+    const btn = $(this);
 
-    // set action langsung dari server
-    $('#formReceive').attr('action', d.action || '#');
+    const code        = btn.data('code')          || '-';
+    const product     = btn.data('product')       || '-';
+    const productCode = btn.data('product_code')  || '';
+    const supplier    = btn.data('supplier')      || '-';
 
-    new bootstrap.Modal(document.getElementById('mdlReceive')).show();
+    const qtyReq  = parseInt(btn.data('qty_req')) || 0;
+    const qtyRcv  = parseInt(btn.data('qty_rcv')) || 0;
+    const qtyRemAttr = btn.data('qty_remaining') ?? btn.data('qty_rem');
+    const qtyRem = qtyRemAttr !== undefined
+      ? (parseInt(qtyRemAttr) || 0)
+      : Math.max(qtyReq - qtyRcv, 0);
+
+    // set header kecil
+    $('#rcvCode').text(code);
+
+    // isi row
+    $('#rcvProductRow').text(product);
+    $('#rcvProductCodeRow').text(productCode);
+    $('#rcvSupplierRow').text(supplier);
+    $('#tblQtyReq').text(qtyReq);
+    $('#tblQtyRcvBefore').text(qtyRcv);
+    $('#tblQtyRemaining').text(qtyRem);
+
+    // default input (maksimal = qty remaining)
+    $('#inpQtyGood').attr('max', qtyRem).val(qtyRem);
+    $('#inpQtyDamaged').attr('max', qtyRem).val(0);
+
+    // set action ke route receive yg dikirim di data-action
+    $('#formReceive').attr('action', btn.data('action'));
+
+    // reset file & notes
+    $('#formReceive').find('input[type="file"]').val('');
+    $('#formReceive').find('input[name="notes"]').val('');
+
+    const modal = new bootstrap.Modal(document.getElementById('mdlReceive'));
+    modal.show();
+  });
+
+  // ========= MULTI ITEM RF =========
+  let nextRfIndex = 1;
+
+  function renumberRfRows() {
+    $('#tblRfItems tbody tr').each(function (i, tr) {
+      $(tr).find('.row-num').text(i + 1);
+    });
+  }
+
+  $('#btnAddRfRow').on('click', function () {
+    const tbody = $('#tblRfItems tbody');
+    const idx   = nextRfIndex++;
+
+    const rowHtml = `
+      <tr data-index="${idx}">
+        <td class="row-num"></td>
+        <td>
+          <select name="items[${idx}][product_id]" class="form-select form-select-sm" required>
+            <option value="">— Pilih —</option>
+            @foreach($products as $p)
+              <option value="{{ $p->id }}">{{ $p->product_code }} — {{ $p->name }}</option>
+            @endforeach
+          </select>
+        </td>
+        <td>
+          <input type="number" min="1"
+                 name="items[${idx}][quantity_requested]"
+                 class="form-control form-control-sm text-end"
+                 value="1" required>
+        </td>
+        <td>
+          <input type="text"
+                 name="items[${idx}][note]"
+                 class="form-control form-control-sm"
+                 placeholder="Catatan (opsional)">
+        </td>
+        <td class="text-center">
+          <button type="button"
+                  class="btn btn-xs btn-link text-danger btn-remove">&times;</button>
+        </td>
+      </tr>
+    `;
+
+    tbody.append(rowHtml);
+    renumberRfRows();
+  });
+
+  $('#tblRfItems tbody').on('click', '.btn-remove', function () {
+    const tbody = $('#tblRfItems tbody');
+    const rows  = tbody.find('tr');
+
+    // minimal harus ada 1 baris
+    if (rows.length <= 1) return;
+
+    $(this).closest('tr').remove();
+    renumberRfRows();
+  });
+
+  // tiap kali modal dibuka, reset ke 1 baris
+  $('#mdlAdd').on('shown.bs.modal', function () {
+    const tbody = $('#tblRfItems tbody');
+    tbody.find('tr:not(:first)').remove();
+    nextRfIndex = 1;
+    renumberRfRows();
+    // reset nilai
+    tbody.find('select,input').val('');
+    tbody.find('input[name$="[quantity_requested]"]').val(1);
   });
 });
 </script>
-
-
-@if (session('success'))
-  <script>Swal.fire({icon:'success', title:'Berhasil', text:@json(session('success')), timer:1800, showConfirmButton:false});</script>
-@endif
-@if (session('error'))
-  <script>Swal.fire({icon:'error', title:'Gagal', text:@json(session('error'))});</script>
-@endif
 @endpush

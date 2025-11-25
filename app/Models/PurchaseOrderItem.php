@@ -6,11 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrderItem extends Model
 {
-    protected $fillable = [
-        'purchase_order_id','product_id','warehouse_id',
-        'qty_ordered','qty_received','unit_price',
-        'discount_type','discount_value','line_total','notes'
-    ];
+    protected $table = 'purchase_order_items';
+
+    // PENTING: request_id, product_id, warehouse_id, dst harus boleh diisi
+    protected $guarded = []; // atau pakai $fillable sesuai kebutuhan
 
     public function po()
     {
@@ -27,8 +26,8 @@ class PurchaseOrderItem extends Model
         return $this->belongsTo(Warehouse::class);
     }
 
-    public function remaining(): int
+    public function request()
     {
-        return max(0, (int)$this->qty_ordered - (int)$this->qty_received);
+        return $this->belongsTo(RequestRestock::class, 'request_id');
     }
 }

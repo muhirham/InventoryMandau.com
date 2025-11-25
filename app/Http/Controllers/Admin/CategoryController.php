@@ -11,7 +11,10 @@ class CategoryController extends Controller
 {
     public function index()
     {
-        return view('admin.masterdata.categories');
+        // kode awal buat prefll di form create
+        $nextCode = Category::nextCode();
+
+        return view('admin.masterdata.categories', compact('nextCode'));
     }
 
     public function datatable(Request $r)
@@ -73,10 +76,15 @@ class CategoryController extends Controller
     public function store(Request $r)
     {
         $data = $r->validate([
-            'category_code' => ['required','max:30','alpha_dash', Rule::unique('categories','category_code')],
+            // boleh kosong → auto generate di bawah
+            'category_code' => ['nullable','max:30','alpha_dash', Rule::unique('categories','category_code')],
             'category_name' => ['required','max:150'],
             'description'   => ['nullable','max:255'],
         ]);
+
+        if (empty($data['category_code'])) {
+            $data['category_code'] = Category::nextCode();
+        }
 
         Category::create($data);
         return response()->json(['success' => 'Category created']);
@@ -85,7 +93,10 @@ class CategoryController extends Controller
     public function update(Request $r, Category $category)
     {
         $data = $r->validate([
-            'category_code' => ['required','max:30','alpha_dash', Rule::unique('categories','category_code')->ignore($category->id)],
+            'category_code' => [
+                'required','max:30','alpha_dash',
+                Rule::unique('categories','category_code')->ignore($category->id)
+            ],
             'category_name' => ['required','max:150'],
             'description'   => ['nullable','max:255'],
         ]);

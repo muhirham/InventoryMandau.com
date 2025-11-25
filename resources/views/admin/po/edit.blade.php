@@ -1,274 +1,443 @@
-    @extends('layouts.home')
+@extends('layouts.home')
 
-    @section('content')
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+@section('content')
+@php
+  // dikirim dari controller: $isLocked = ($po->status === 'completed');
+  $poLocked = $isLocked ?? false;
+@endphp
 
-    <div class="container-xxl flex-grow-1 container-p-y">
+<div class="container-xxl flex-grow-1 container-p-y">
 
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0 fw-bold">PO: {{ $po->po_code }} <span class="badge bg-label-info text-uppercase">{{ $status }}</span></h5>
-        <div class="d-flex gap-2">
-        <a href="{{ route('admin.po.pdf',$po->id) }}" class="btn btn-outline-secondary btn-sm">PDF</a>
-        <a href="{{ route('admin.po.excel',$po->id) }}" class="btn btn-outline-secondary btn-sm">Excel</a>
-        </div>
+  @if(session('success'))
+    <div class="alert alert-success">{{ session('success') }}</div>
+  @endif
+  @if(session('info'))
+    <div class="alert alert-info">{{ session('info') }}</div>
+  @endif
+  @if($errors->any())
+    <div class="alert alert-danger">
+      <ul class="mb-0">
+        @foreach($errors->all() as $e)
+          <li>{{ $e }}</li>
+        @endforeach
+      </ul>
+    </div>
+  @endif
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h5 class="mb-1">
+        PO: {{ $po->po_code }}
+        <span class="badge bg-label-info text-uppercase">{{ $po->status }}</span>
+
+        @if($isFromRequest)
+          <span class="badge bg-label-secondary ms-1">FROM REQUEST</span>
+        @else
+          <span class="badge bg-label-secondary ms-1">MANUAL</span>
+        @endif
+      </h5>
+      <small class="text-muted">
+        @if($poLocked)
+          PO sudah COMPLETED, tidak dapat diubah. Jika GR dihapus (approved), status PO akan dibuka lagi.
+        @else
+          PO baru / aktif, silakan isi item dan simpan.
+        @endif
+      </small>
     </div>
 
-    @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-    @if($errors->any())
-        <div class="alert alert-danger">{{ implode(', ', $errors->all()) }}</div>
-    @endif
+    <div class="btn-group">
+      <a href="{{ route('po.pdf',$po->id) }}"  class="btn btn-outline-secondary btn-sm">PDF</a>
+      <a href="{{ route('po.excel',$po->id) }}" class="btn btn-outline-secondary btn-sm">Excel</a>
+    </div>
+  </div>
 
-    {{-- FORM UPDATE --}}
-    <form method="post" action="{{ route('admin.po.update', $po->id) }}">
-        @csrf @method('PUT')
+  {{-- HEADER: info supplier & notes --}}
+  <form method="POST" action="{{ route('po.update',$po->id) }}" id="formPo">
+    @csrf
+    @method('PUT')
 
-        <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div>
-            <div class="small text-muted">Supplier</div>
-            <div class="fw-semibold">{{ $po->supplier->supplier_name ?? '-' }}</div>
-            </div>
-            <div class="ms-auto" style="min-width:320px">
-            <label class="form-label small">Notes</label>
-            <textarea name="notes" class="form-control form-control-sm" rows="2">{{ old('notes',$po->notes) }}</textarea>
-            </div>
+    <div class="card mb-3">
+      <div class="card-body row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Informasi Supplier</label>
+          <input type="text"
+                 class="form-control"
+                 value="Supplier mengikuti masing-masing produk (multi supplier diperbolehkan)."
+                 disabled>
         </div>
+        <div class="col-md-8">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" rows="2" class="form-control" @disabled($poLocked)>{{ old('notes',$po->notes) }}</textarea>
+        </div>
+      </div>
+    </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                <th>#</th>
-                <th>Product</th>
-                <th>Warehouse</th>
-                <th style="width:120px">Qty</th>
-                <th style="width:140px">Unit Price</th>
-                <th style="width:140px">Disc Type</th>
-                <th style="width:140px">Disc Value</th>
-                <th class="text-end" style="width:160px">Line Total</th>
-                <th style="width:120px">Receive</th>
-                </tr>
-            </thead>
-            <tbody id="poLines">
-                @foreach($po->items as $i => $it)
-                <tr data-id="{{ $it->id }}">
-                <td>{{ $i+1 }}
-                    <input type="hidden" name="items[{{ $i }}][id]" value="{{ $it->id }}">
-                </td>
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Items</h6>
+        @unless($poLocked)
+          <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddRow">
+            <i class="bx bx-plus"></i> Tambah Baris
+          </button>
+        @endunless
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tblItems">
+          <thead>
+            <tr>
+              <th style="width:40px">#</th>
+              <th>Product</th>
+              <th>Warehouse</th>
+              <th style="width:110px" class="text-end">Qty</th>
+              <th style="width:120px" class="text-end">Unit Price</th>
+              <th style="width:120px">Disc Type</th>
+              <th style="width:120px" class="text-end">Disc Value</th>
+              <th style="width:130px" class="text-end">Line Total</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @php $idx = 0; @endphp
+            @foreach($po->items as $it)
+              <tr data-index="{{ $idx }}">
+                <td class="row-num"></td>
+
+                {{-- PRODUCT + hidden id & request_id --}}
                 <td>
-                    <div class="fw-semibold">{{ $it->product->product_name ?? $it->product_id }}</div>
-                    <div class="small text-muted">ID: {{ $it->product_id }}</div>
+                  <input type="hidden" name="items[{{ $idx }}][id]" value="{{ $it->id }}">
+                  <input type="hidden" name="items[{{ $idx }}][request_id]" value="{{ $it->request_id }}">
+
+                  <select name="items[{{ $idx }}][product_id]" class="form-select form-select-sm product-select" @disabled($poLocked)>
+                    <option value="">— Pilih —</option>
+                    @foreach($products as $p)
+                      <option value="{{ $p->id }}"
+                              data-price="{{ (int)$p->selling_price }}"
+                              data-supplier="{{ $p->supplier->name ?? '-' }}"
+                              @selected($p->id == $it->product_id)>
+                        {{ $p->product_code }} — {{ $p->name }}
+                      </option>
+                    @endforeach
+                  </select>
+                  <div class="small text-muted js-supplier-label">
+                    {{ $it->product->supplier->name ?? '-' }}
+                  </div>
                 </td>
-                <td>{{ $it->warehouse->warehouse_name ?? $it->warehouse_id }}</td>
+
+                {{-- WAREHOUSE --}}
                 <td>
-                    <input name="items[{{ $i }}][qty_ordered]" type="number" min="1" class="form-control form-control-sm qty"
-                        value="{{ $it->qty_ordered }}" @disabled($it->qty_received >= $it->qty_ordered)>
-                    <div class="small text-muted">Received: {{ $it->qty_received }} / Rem: {{ max(0,$it->qty_ordered - $it->qty_received) }}</div>
+                  @if($isFromRequest)
+                    <select name="items[{{ $idx }}][warehouse_id]" class="form-select form-select-sm" @disabled($poLocked)>
+                      <option value="">— Pilih —</option>
+                      @foreach($warehouses as $w)
+                        <option value="{{ $w->id }}" @selected($w->id == $it->warehouse_id)>
+                          {{ $w->warehouse_name }}
+                        </option>
+                      @endforeach
+                    </select>
+                  @else
+                    <input type="hidden" name="items[{{ $idx }}][warehouse_id]" value="">
+                    <span class="text-muted">– Central Stock –</span>
+                  @endif
                 </td>
+
+                {{-- QTY --}}
                 <td>
-                    <input name="items[{{ $i }}][unit_price]" type="number" step="0.01" min="0" class="form-control form-control-sm price"
-                        value="{{ $it->unit_price }}" @disabled($it->qty_received >= $it->qty_ordered)>
+                  <input type="number" min="1"
+                         class="form-control text-end qty"
+                         name="items[{{ $idx }}][qty]"
+                         value="{{ $it->qty_ordered }}"
+                         @disabled($poLocked)>
                 </td>
+
+                {{-- UNIT PRICE --}}
                 <td>
-                    <select name="items[{{ $i }}][discount_type]" class="form-select form-select-sm dtype" @disabled($it->qty_received >= $it->qty_ordered)>
+                  <input type="number" min="0" step="1"
+                         class="form-control form-control-sm text-end price"
+                         name="items[{{ $idx }}][unit_price]"
+                         value="{{ (int)$it->unit_price }}"
+                         @disabled($poLocked)>
+                </td>
+
+                {{-- DISC TYPE --}}
+                <td>
+                  <select name="items[{{ $idx }}][discount_type]" class="form-select form-select-sm disc-type" @disabled($poLocked)>
                     <option value="">-</option>
                     <option value="percent" @selected($it->discount_type==='percent')>%</option>
-                    <option value="amount"  @selected($it->discount_type==='amount')>Nominal</option>
-                    </select>
+                    <option value="amount"  @selected($it->discount_type==='amount')>Rp</option>
+                  </select>
                 </td>
-                <td>
-                    <input name="items[{{ $i }}][discount_value]" type="number" step="0.01" min="0" class="form-control form-control-sm dval"
-                        value="{{ $it->discount_value }}" @disabled($it->qty_received >= $it->qty_ordered)>
-                </td>
-                <td class="text-end fw-bold line-total">{{ number_format($it->line_total,0,',','.') }}</td>
-                <td>
-                    @if($it->qty_received < $it->qty_ordered)
-                    <button type="button" class="btn btn-sm btn-success btnReceive"
-                    data-id="{{ $it->id }}"
-                    data-product="{{ $it->product->product_name ?? $it->product_id }}"
-                    data-warehouse="{{ $it->warehouse->warehouse_name ?? $it->warehouse_id }}">
-                    Receive
-                    </button>
-                    @else
-                    <span class="badge bg-label-success">DONE</span>
-                    @endif
-                </td>
-                </tr>
-                @endforeach
-            </tbody>
-            <tfoot>
-                <tr>
-                <th colspan="7" class="text-end">Subtotal</th>
-                <th class="text-end" id="subTotal">{{ number_format($subtotal,0,',','.') }}</th>
-                <th></th>
-                </tr>
-                <tr>
-                <th colspan="7" class="text-end">Discount</th>
-                <th class="text-end" id="discTotal">{{ number_format($discount,0,',','.') }}</th>
-                <th></th>
-                </tr>
-                <tr>
-                <th colspan="7" class="text-end">Grand Total</th>
-                <th class="text-end fs-5" id="grandTotal">{{ number_format($grand,0,',','.') }}</th>
-                <th></th>
-                </tr>
-            </tfoot>
-            </table>
-        </div>
 
-        <div class="card-footer d-flex gap-2">
-            <button class="btn btn-primary">Simpan Perubahan</button>
-            <form method="post" action="{{ route('admin.po.order',$po->id) }}">
-            @csrf
-            <button class="btn btn-warning" type="submit">Set ORDERED</button>
-            </form>
-            <form method="post" action="{{ route('admin.po.cancel',$po->id) }}">
-            @csrf
-            <button class="btn btn-outline-danger" type="submit">Cancel</button>
-            </form>
-            <a href="{{ route('admin.po.index') }}" class="btn btn-outline-secondary ms-auto">Kembali</a>
-        </div>
-        </div>
-    </form>
+                {{-- DISC VALUE --}}
+                <td>
+                  <input type="number" min="0" step="1"
+                         class="form-control form-control-sm text-end disc-val"
+                         name="items[{{ $idx }}][discount_value]"
+                         value="{{ (int)$it->discount_value }}"
+                         @disabled($poLocked)>
+                </td>
 
-    {{-- FORM RECEIVE (hidden batch) --}}
-    <form id="frmReceive" method="post" action="{{ route('admin.po.receive',$po->id) }}" class="d-none">
+                {{-- LINE TOTAL --}}
+                <td class="text-end line-total">
+                  {{ number_format($it->line_total, 0, ',', '.') }}
+                </td>
+
+                {{-- HAPUS --}}
+                <td class="text-center">
+                  @unless($poLocked)
+                    <button type="button" class="btn btn-xs btn-link text-danger btn-remove">&times;</button>
+                  @endunless
+                </td>
+              </tr>
+              @php $idx++; @endphp
+            @endforeach
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="7" class="text-end">SUBTOTAL</th>
+              <th class="text-end" id="ftSubtotal">0</th>
+              <th></th>
+            </tr>
+            <tr>
+              <th colspan="7" class="text-end">DISCOUNT</th>
+              <th class="text-end" id="ftDiscount">0</th>
+              <th></th>
+            </tr>
+            <tr>
+              <th colspan="7" class="text-end">GRAND TOTAL</th>
+              <th class="text-end fw-bold" id="ftGrand">0</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="card-footer d-flex justify-content-between">
+        <a href="{{ route('po.index') }}" class="btn btn-outline-secondary">Kembali</a>
+        @unless($poLocked)
+          <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+        @endunless
+      </div>
+    </div>
+  </form>
+
+  {{-- FORM ORDER & CANCEL (TERPISAH, BUKAN NESTED) --}}
+  <div class="d-flex justify-content-end mt-2 gap-2">
+    @unless($poLocked)
+    <form method="POST" action="{{ route('po.order', $po->id) }}" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-warning me-2">
+                Set ORDERED
+            </button>
+            <a href="{{ route('po.index') }}" class="btn btn-outline-secondary">
+                Kembali
+            </a>
+        </form>
+
+      <form method="POST" action="{{ route('po.cancel',$po->id) }}">
         @csrf
-        <div id="receivePayload"></div>
-    </form>
+        <button type="submit" class="btn btn-outline-danger">Cancel</button>
+      </form>
+    @endunless
+  </div>
 
-    {{-- Modal Receive --}}
-    <div class="modal fade" id="mdlReceive" tabindex="-1">
-        <div class="modal-dialog">
-        <div class="modal-content">
-            <form id="frmReceiveItem" onsubmit="return false">
-            <div class="modal-header">
-                <h5 class="modal-title">Receive Item</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="rcv_id">
-                <div class="mb-2">
-                <label class="form-label">Product</label>
-                <input class="form-control" id="rcv_product" readonly>
-                </div>
-                <div class="mb-2">
-                <label class="form-label">Warehouse</label>
-                <input class="form-control" id="rcv_warehouse" readonly>
-                </div>
-                <div class="row g-2">
-                <div class="col">
-                    <label class="form-label">Qty Good</label>
-                    <input type="number" min="0" class="form-control" id="rcv_good" value="0">
-                </div>
-                <div class="col">
-                    <label class="form-label">Qty Damaged</label>
-                    <input type="number" min="0" class="form-control" id="rcv_bad" value="0">
-                </div>
-                </div>
-                <div class="mt-2">
-                <label class="form-label">Notes</label>
-                <textarea class="form-control" id="rcv_notes" rows="2"></textarea>
-                </div>
-                <div class="alert alert-info mt-2 small">
-                Tekan <b>Ctrl + Enter</b> untuk submit batch receive.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary" id="btnAddReceive">Tambahkan</button>
-                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
-            </div>
-            </form>
-        </div>
-        </div>
-    </div>
+</div>
 
-    </div>
+@push('scripts')
+<script>
+(function () {
+  let nextIndex = {{ $idx ?? 0 }};
+  const poLocked = @json($poLocked);
 
-    @push('scripts')
-    <script>
-    (function(){
-    const fmt = n => (Math.round(n)).toLocaleString('id-ID');
-    const tbody = document.querySelector('#poLines');
+  function renumberRows() {
+    document.querySelectorAll('#tblItems tbody tr').forEach((tr, i) => {
+      const cell = tr.querySelector('.row-num');
+      if (cell) cell.innerText = i + 1;
+    });
+  }
 
-    function recalc(){
-        let sub=0, disc=0, grand=0;
-        tbody.querySelectorAll('tr').forEach(tr=>{
-        const qty   = parseFloat(tr.querySelector('.qty')?.value || 0);
-        const price = parseFloat(tr.querySelector('.price')?.value || 0);
-        const dtype = tr.querySelector('.dtype')?.value || '';
-        const dval  = parseFloat(tr.querySelector('.dval')?.value || 0);
+  function recalc() {
+    let subtotal = 0, discount = 0;
 
-        const lineSub = qty*price;
-        let lineDisc=0;
-        if(dtype==='percent') lineDisc = lineSub*(dval/100);
-        if(dtype==='amount')  lineDisc = dval;
-        let lineTot = Math.max(0, lineSub - lineDisc);
+    document.querySelectorAll('#tblItems tbody tr').forEach(tr => {
+      const qtyEl       = tr.querySelector('.qty');
+      const priceEl     = tr.querySelector('.price');
+      const discTypeEl  = tr.querySelector('.disc-type');
+      const discValEl   = tr.querySelector('.disc-val');
 
-        const cell = tr.querySelector('.line-total');
-        if(cell) cell.textContent = fmt(lineTot);
+      const qty      = parseFloat(qtyEl?.value || 0);
+      const price    = parseFloat(priceEl?.value || 0);
+      const discType = discTypeEl?.value || '';
+      const discVal  = parseFloat(discValEl?.value || 0);
 
-        sub  += lineSub;
-        disc += lineDisc;
-        grand+= lineTot;
-        });
-        document.querySelector('#subTotal').textContent  = fmt(sub);
-        document.querySelector('#discTotal').textContent = fmt(disc);
-        document.querySelector('#grandTotal').textContent= fmt(grand);
+      let line = qty * price;
+      let disc = 0;
+
+      if (discType === 'percent') {
+        disc = Math.min(100, Math.max(0, discVal)) / 100 * line;
+      } else if (discType === 'amount') {
+        disc = Math.min(discVal, line);
+      }
+
+      const net = line - disc;
+
+      subtotal += line;
+      discount += disc;
+
+      const lineCell = tr.querySelector('.line-total');
+      if (lineCell) {
+        lineCell.innerText = net.toLocaleString('id-ID');
+      }
+    });
+
+    document.getElementById('ftSubtotal').innerText = subtotal.toLocaleString('id-ID');
+    document.getElementById('ftDiscount').innerText = discount.toLocaleString('id-ID');
+    document.getElementById('ftGrand').innerText    = (subtotal - discount).toLocaleString('id-ID');
+  }
+
+  function attachProductAutoPrice(tr) {
+    const select = tr.querySelector('.product-select');
+    if (!select) return;
+
+    select.addEventListener('change', function () {
+      if (poLocked) return; // kalau locked, jangan ubah apa-apa
+
+      const opt       = this.options[this.selectedIndex];
+      const priceAttr = opt ? parseFloat(opt.dataset.price || 0) : 0;
+      const supplier  = opt ? (opt.dataset.supplier || '-') : '-';
+
+      const priceInput = tr.querySelector('.price');
+      const supLabel   = tr.querySelector('.js-supplier-label');
+
+      if (priceInput) {
+        priceInput.value = priceAttr;
+      }
+
+      if (supLabel) {
+        supLabel.textContent = supplier;
+      }
+
+      recalc();
+    });
+
+    const selectedOpt = select.options[select.selectedIndex];
+    if (selectedOpt && selectedOpt.value) {
+      const supplier  = selectedOpt.dataset.supplier || '-';
+      const supLabel  = tr.querySelector('.js-supplier-label');
+      if (supLabel) supLabel.textContent = supplier;
     }
+  }
 
-    tbody.addEventListener('input', function(e){
-        if(e.target.matches('.qty,.price,.dtype,.dval')) recalc();
+  // Tambah baris baru
+  const btnAdd = document.getElementById('btnAddRow');
+  if (btnAdd) {
+    btnAdd.addEventListener('click', () => {
+      const tbody = document.querySelector('#tblItems tbody');
+      const idx = nextIndex++;
+
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-index', idx);
+      tr.innerHTML = `
+        <td class="row-num"></td>
+
+        <td>
+          <input type="hidden" name="items[${idx}][id]" value="">
+          <input type="hidden" name="items[${idx}][request_id]" value="">
+          <select name="items[${idx}][product_id]" class="form-select form-select-sm product-select">
+            <option value="">— Pilih —</option>
+            @foreach($products as $p)
+              <option value="{{ $p->id }}"
+                      data-price="{{ (int)$p->selling_price }}"
+                      data-supplier="{{ $p->supplier->name ?? '-' }}">
+                {{ $p->product_code }} — {{ $p->name }}
+              </option>
+            @endforeach
+          </select>
+          <div class="small text-muted js-supplier-label">-</div>
+        </td>
+
+        <td>
+          @if($isFromRequest)
+            <select name="items[${idx}][warehouse_id]" class="form-select form-select-sm">
+              <option value="">— Pilih —</option>
+              @foreach($warehouses as $w)
+                <option value="{{ $w->id }}">{{ $w->warehouse_name }}</option>
+              @endforeach
+            </select>
+          @else
+            <input type="hidden" name="items[${idx}][warehouse_id]" value="">
+            <span class="text-muted">– Central Stock –</span>
+          @endif
+        </td>
+
+        <td>
+          <input type="number" min="1" class="form-control text-end qty"
+                 name="items[${idx}][qty]" value="1">
+        </td>
+
+        <td>
+          <input type="number" min="0" step="1"
+                 class="form-control form-control-sm text-end price"
+                 name="items[${idx}][unit_price]" value="0">
+        </td>
+
+        <td>
+          <select name="items[${idx}][discount_type]" class="form-select form-select-sm disc-type">
+            <option value="">-</option>
+            <option value="percent">%</option>
+            <option value="amount">Rp</option>
+          </select>
+        </td>
+
+        <td>
+          <input type="number" min="0" step="1"
+                 class="form-control form-control-sm text-end disc-val"
+                 name="items[${idx}][discount_value]" value="0">
+        </td>
+
+        <td class="text-end line-total">0</td>
+
+        <td class="text-center">
+          <button type="button" class="btn btn-xs btn-link text-danger btn-remove">&times;</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+      attachProductAutoPrice(tr);
+      renumberRows();
+      recalc();
     });
+  }
 
-    // Modal Receive
-    let mdl;
-    document.querySelectorAll('.btnReceive').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-        document.querySelector('#rcv_id').value = btn.dataset.id;
-        document.querySelector('#rcv_product').value = btn.dataset.product;
-        document.querySelector('#rcv_warehouse').value = btn.dataset.warehouse;
-        document.querySelector('#rcv_good').value = 0;
-        document.querySelector('#rcv_bad').value = 0;
-        document.querySelector('#rcv_notes').value = '';
-        mdl = new bootstrap.Modal(document.getElementById('mdlReceive'));
-        mdl.show();
-        });
-    });
+  // remove row
+  document.querySelector('#tblItems tbody').addEventListener('click', function (e) {
+    if (poLocked) return;
+    if (e.target.classList.contains('btn-remove')) {
+      e.target.closest('tr').remove();
+      renumberRows();
+      recalc();
+    }
+  });
 
-    document.querySelector('#btnAddReceive').addEventListener('click', ()=>{
-        const id = document.querySelector('#rcv_id').value;
-        const good = parseInt(document.querySelector('#rcv_good').value||0);
-        const bad  = parseInt(document.querySelector('#rcv_bad').value||0);
-        const notes= document.querySelector('#rcv_notes').value||'';
+  // recalc saat input berubah
+  document.querySelector('#tblItems tbody').addEventListener('input', function (e) {
+    if (poLocked) return;
+    if (
+      e.target.classList.contains('qty') ||
+      e.target.classList.contains('price') ||
+      e.target.classList.contains('disc-val') ||
+      e.target.classList.contains('disc-type')
+    ) {
+      recalc();
+    }
+  });
 
-        if(good+bad<=0){ alert('Isi qty yang diterima.'); return; }
+  // pasang auto-price ke baris awal
+  document.querySelectorAll('#tblItems tbody tr').forEach(tr => attachProductAutoPrice(tr));
 
-        // append payload hidden
-        const cont = document.querySelector('#receivePayload');
-        const idx  = cont.children.length;
-        cont.insertAdjacentHTML('beforeend', `
-        <input type="hidden" name="receives[${idx}][id]" value="${id}">
-        <input type="hidden" name="receives[${idx}][qty_good]" value="${good}">
-        <input type="hidden" name="receives[${idx}][qty_damaged]" value="${bad}">
-        <input type="hidden" name="receives[${idx}][notes]" value="${notes.replace(/"/g,'&quot;')}">
-        `);
-        mdl.hide();
-    });
+  renumberRows();
+  recalc();
+})();
+</script>
+@endpush
 
-    // Submit batch receive pakai Ctrl+Enter
-    document.addEventListener('keydown', function(e){
-        if(e.ctrlKey && e.key==='Enter'){
-        const cont = document.querySelector('#receivePayload');
-        if(cont.children.length===0){ alert('Belum ada item receive yang ditambahkan.'); return; }
-        document.querySelector('#frmReceive').submit();
-        }
-    });
-
-    recalc();
-    })();
-    </script>
-    @endpush
-    @endsection
+@endsection

@@ -4,9 +4,11 @@ namespace App\Models;
 use App\Models\Concerns\FiltersByWarehouse;
 use Illuminate\Database\Eloquent\Model;
 
+
 class StockMovement extends Model
 {
     use FiltersByWarehouse;
+
     protected $fillable = [
         'product_id', 'from_type', 'from_id',
         'to_type', 'to_id', 'quantity',

@@ -6,7 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class RestockReceiptPhoto extends Model
 {
-    protected $fillable = ['receipt_id','path'];
+    protected $table = 'restock_receipt_photos';
 
-    public function receipt() { return $this->belongsTo(RestockReceipt::class, 'receipt_id'); }
+    protected $fillable = [
+        'receipt_id',
+        'path',
+        'caption',
+    ];
+
+    public function receipt()
+    {
+        return $this->belongsTo(\App\Models\RestockReceipt::class, 'receipt_id');
+    }
 }

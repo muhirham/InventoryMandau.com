@@ -8,14 +8,17 @@ use Illuminate\Support\Facades\Auth;
 
 class Authenticate
 {
-    public function handle(Request $request, Closure $next, ...$roles)
+    public function handle(Request $request, Closure $next, ...$slugs)
     {
         if (!Auth::check()) {
             return redirect()->route('login');
         }
 
-        if ($roles && !in_array(Auth::user()->role, $roles)) {
-            abort(403, 'Unauthorized');
+        if (!empty($slugs)) {
+            $user = Auth::user();
+            $ok   = $user->roles()->whereIn('slug', $slugs)->exists()
+                 || in_array(($user->role ?? ''), $slugs, true); // fallback
+            if (!$ok) abort(403, 'Unauthorized');
         }
 
         return $next($request);

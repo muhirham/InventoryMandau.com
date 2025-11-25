@@ -55,8 +55,11 @@
         </div>
         <div class="modal-body row g-3">
             <div class="col-6">
-            <label class="form-label">Category Code <span class="text-danger">*</span></label>
-            <input name="category_code" class="form-control" required placeholder="e.g. FACECARE">
+            <label class="form-label">Category Code</label>
+            <input name="category_code" class="form-control"
+                    value="{{ $nextCode }}" {{-- auto-suggest --}}
+                    placeholder="Empty = auto (e.g. CAT-001)">
+            <small class="text-muted">Bisa diedit. Kosongkan kalau mau auto generate.</small>
             </div>
             <div class="col-6">
             <label class="form-label">Category Name <span class="text-danger">*</span></label>
@@ -117,6 +120,10 @@
     html[data-color-scheme="dark"] .dataTables_wrapper .dataTables_paginate .paginate_button {
         color: var(--text, #e5e7eb) !important;
     }
+    /* Biar description nggak kelihatan ke-hidden */
+    #dtCategories td:nth-child(4){
+        white-space: normal;
+    }
     </style>
     @endpush
 
@@ -134,9 +141,9 @@
         order: [[0,'asc']],
         columns: [
         { data: 'id',            name: 'id',            width: 80,  className:'align-middle' },
-        { data: 'category_code', name: 'category_code',            className:'align-middle fw-semibold' },
-        { data: 'category_name', name: 'category_name',            className:'align-middle' },
-        { data: 'description',   name: 'description',              className:'align-middle text-muted' },
+        { data: 'category_code', name: 'category_code',           className:'align-middle fw-semibold' },
+        { data: 'category_name', name: 'category_name',           className:'align-middle' },
+        { data: 'description',   name: 'description',             className:'align-middle' },
         { data: 'updated_at',    name: 'updated_at',   width: 160, className:'align-middle' },
         { data: 'actions',       orderable:false, searchable:false, width:120, className:'text-end align-middle' },
         ],
@@ -151,7 +158,8 @@
     document.getElementById('dt-search').addEventListener('input', e => DT.search(e.target.value).draw());
     document.getElementById('dt-length').addEventListener('change', e => DT.page.len(+e.target.value).draw());
 
-    const toast = (msg, icon='success') => Swal.fire({icon, title: msg, timer: 1400, showConfirmButton:false});
+    const toast = (msg, icon='success') =>
+        Swal.fire({icon, title: msg, timer: 1400, showConfirmButton:false});
 
     // CREATE
     const modalCreate = document.getElementById('modalCreate');
@@ -160,23 +168,58 @@
     formCreate.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = formCreate.querySelector('[type="submit"]') || formCreate.querySelector('button');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...'; }
+        const codeInput = formCreate.querySelector('input[name="category_code"]');
+        const oldCode   = codeInput ? (codeInput.value || '').trim() : '';
+
+        if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+        }
         try {
         const res = await fetch(formCreate.action, {
-            method:'POST', headers:{'X-CSRF-TOKEN': CSRF}, body:new FormData(formCreate)
+            method:'POST',
+            headers:{'X-CSRF-TOKEN': CSRF},
+            body:new FormData(formCreate)
         });
         if (res.status === 422) {
-            const j = await res.json(); throw new Error(Object.values(j.errors||{}).flat().join('<br>'));
+            const j = await res.json();
+            throw new Error(Object.values(j.errors||{}).flat().join('<br>'));
         }
         await res.json().catch(()=> ({}));
+
+        // tutup modal
         (bootstrap.Modal.getInstance(modalCreate) || new bootstrap.Modal(modalCreate)).hide();
-        formCreate.reset();
+
+        // hitung suggestion code berikutnya, based on kode terakhir yg dipakai user
+        if (codeInput) {
+            let next = oldCode;
+            const m = oldCode.match(/^(.*?)(\d+)$/);
+            if (m) {
+            const prefix = m[1];
+            const numStr = m[2];
+            const nextNum = parseInt(numStr,10) + 1;
+            next = prefix + String(nextNum).padStart(numStr.length,'0');
+            }
+            // kalau oldCode kosong, biarin kosong -> backend generate lagi
+            codeInput.value = next;
+            codeInput.setAttribute('value', next);
+        }
+
+        // kosongkan field lain
+        const nameInput = formCreate.querySelector('input[name="category_name"]');
+        const descInput = formCreate.querySelector('textarea[name="description"]');
+        if (nameInput) nameInput.value = '';
+        if (descInput) descInput.value = '';
+
         DT.ajax.reload(null,false);
         toast('Category created');
         } catch (err) {
         Swal.fire({icon:'error', title:'Error', html: err.message || 'Failed'});
         } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bx bx-save"></i> Save'; }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bx bx-save"></i> Save';
+        }
         }
     });
 
@@ -187,7 +230,8 @@
         document.getElementById('edit_category_code').value = code;
         document.getElementById('edit_category_name').value = name;
         document.getElementById('edit_description').value  = desc || '';
-        document.getElementById('formEdit').action = "{{ route('categories.update', ':id') }}".replace(':id', id);
+        document.getElementById('formEdit').action =
+        "{{ route('categories.update', ':id') }}".replace(':id', id);
         m.show();
     };
 
@@ -197,15 +241,22 @@
     formEdit.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = formEdit.querySelector('[type="submit"]') || formEdit.querySelector('button');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...'; }
+        if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+        }
         try {
         const res = await fetch(formEdit.action, {
             method:'POST',
-            headers:{'X-CSRF-TOKEN': CSRF, 'X-HTTP-Method-Override':'PUT'},
+            headers:{
+            'X-CSRF-TOKEN': CSRF,
+            'X-HTTP-Method-Override':'PUT'
+            },
             body: new FormData(formEdit)
         });
         if (res.status === 422) {
-            const j = await res.json(); throw new Error(Object.values(j.errors||{}).flat().join('<br>'));
+            const j = await res.json();
+            throw new Error(Object.values(j.errors||{}).flat().join('<br>'));
         }
         await res.json().catch(()=> ({}));
         (bootstrap.Modal.getInstance(modalEdit) || new bootstrap.Modal(modalEdit)).hide();
@@ -214,16 +265,31 @@
         } catch (err) {
         Swal.fire({icon:'error', title:'Error', html: err.message || 'Failed'});
         } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bx bx-save"></i> Save'; }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bx bx-save"></i> Save';
+        }
         }
     });
 
     // DELETE
     window.delCategory = async function(id){
-        const ask = await Swal.fire({icon:'warning', title:'Yakin hapus?', text:'Tindakan ini tidak bisa dibatalkan.', showCancelButton:true, confirmButtonText:'Ya, hapus', cancelButtonText:'Batal'});
+        const ask = await Swal.fire({
+        icon:'warning',
+        title:'Yakin hapus?',
+        text:'Tindakan ini tidak bisa dibatalkan.',
+        showCancelButton:true,
+        confirmButtonText:'Ya, hapus',
+        cancelButtonText:'Batal'
+        });
         if (!ask.isConfirmed) return;
+
         await fetch("{{ route('categories.destroy', ':id') }}".replace(':id', id), {
-        method:'POST', headers:{'X-CSRF-TOKEN': CSRF, 'X-HTTP-Method-Override':'DELETE'}
+        method:'POST',
+        headers:{
+            'X-CSRF-TOKEN': CSRF,
+            'X-HTTP-Method-Override':'DELETE'
+        }
         });
         DT.ajax.reload(null,false);
         toast('Category deleted');

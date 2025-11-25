@@ -11,15 +11,19 @@ return new class extends Migration {
             $t->string('name');
             $t->string('username')->unique();
             $t->string('email')->unique();
+            $t->string('phone', 20)->nullable()->unique(); // <= no HP
             $t->string('password');
-            $t->enum('role', ['admin','warehouse','sales'])->default('sales');
+
+            // kalau ada master gudang:
             $t->foreignId('warehouse_id')->nullable()
-              ->constrained('warehouses')->cascadeOnDelete();
+                ->constrained('warehouses')->cascadeOnDelete();
+
             $t->enum('status', ['active','inactive'])->default('active');
             $t->rememberToken();
             $t->timestamps();
         });
     }
+
     public function down(): void {
         Schema::dropIfExists('users');
     }
