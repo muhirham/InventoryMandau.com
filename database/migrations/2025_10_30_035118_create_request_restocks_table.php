@@ -9,6 +9,10 @@ return new class extends Migration {
         Schema::create('request_restocks', function (Blueprint $t) {
             $t->id();
 
+            // === NOMOR DOKUMEN RR (shared untuk banyak item) ===
+            // contoh: RR-20251126-0001
+            $t->string('code', 30)->index();
+
             // Sumber
             $t->foreignId('supplier_id')->constrained('suppliers')->cascadeOnDelete();
             $t->foreignId('product_id')->constrained('products')->cascadeOnDelete();
@@ -19,13 +23,13 @@ return new class extends Migration {
 
             // Angka-angka
             $t->integer('quantity_requested');
-            $t->integer('quantity_received')->nullable();
+            $t->integer('quantity_received')->default(0);
             $t->integer('cost_per_item')->default(0);
             $t->integer('total_cost')->default(0);
 
             // Status
             $t->enum('status', ['pending','approved','ordered','received','cancelled'])
-              ->default('pending');
+            ->default('pending');
 
             // Approval
             $t->foreignId('approved_by')->nullable()->constrained('users')->cascadeOnDelete();

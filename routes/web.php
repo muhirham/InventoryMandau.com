@@ -96,13 +96,6 @@ Route::middleware('auth')->group(function () {
         ->middleware('menu:products');
 
      // key: stockproducts
-    Route::get('stock-products', [ProductStockController::class, 'index'])
-        ->name('stockproducts.index')
-        ->middleware('menu:stockproducts');
-
-    Route::get('stock-products/datatable', [ProductStockController::class, 'datatable'])
-        ->name('stockproducts.datatable')
-        ->middleware('menu:stockproducts');
 
     // key: stock_adjustments
     Route::get('stock-adjustments', [StockAdjustmentController::class, 'index'])
@@ -208,25 +201,17 @@ Route::middleware('auth')->group(function () {
         ->middleware('menu:goodreceived');
 
 
-    // Ajukan permohonan delete GR untuk 1 GR (bukan PO)
-    Route::post('/good-received/{receipt}/request-delete', [GrDeleteRequestController::class, 'store'])
-        ->name('goodreceived.request-delete')
+    // Ajukan permohonan delete GR untuk 1 GR (bukan PO)        
+        Route::post('/good-received/{receipt}/cancel', [GoodReceivedController::class, 'cancelFromGr'])
+        ->name('good-received.cancel')
         ->middleware('menu:goodreceived');
-
+        
     // Halaman daftar permohonan
     Route::get('/good-received/delete-requests',[GrDeleteRequestController::class, 'index'])
     ->name('goodreceived.delete-requests.index')
     ->middleware('menu:goodreceived_delete');
 
     // APPROVE
-    Route::post('/good-received/delete-requests/{deleteRequest}/approve',[GrDeleteRequestController::class, 'approve'])
-    ->name('goodreceived.delete-requests.approve')
-    ->middleware('menu:goodreceived_delete');
-
-    // REJECT
-    Route::post('/good-received/delete-requests/{deleteRequest}/reject',[GrDeleteRequestController::class, 'reject'])
-    ->name('goodreceived.delete-requests.reject')
-    ->middleware('menu:goodreceived_delete');
 
 
 
@@ -246,6 +231,10 @@ Route::middleware('auth')->group(function () {
     Route::post('stockRequest/bulk-po',      [RestockApprovalController::class,'bulkPO'])
         ->name('stockRequest.bulkpo')
         ->middleware('menu:restock_request_ap');
+
+    Route::get('/restocks/{restock}/items',   [StockWhController::class,'items'])
+        ->name('restocks.items')
+        ->middleware('menu:wh_restock');
 
     /* === Warehouse – Restock + Sales Handover === */
 

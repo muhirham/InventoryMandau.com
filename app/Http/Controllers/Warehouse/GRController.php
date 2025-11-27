@@ -96,9 +96,11 @@ class GRController extends Controller
 
                 // ====== stock_levels (masuk cuma yang GOOD) ======
                 if (Schema::hasTable('stock_levels')) {
+
+                    // 1) TAMBAH stok di warehouse tujuan
                     $sl = DB::table('stock_levels')->where([
                         'product_id' => $it->product_id,
-                        'owner_type' => 'warehouse',   // Central Stock = gudang khusus (id di warehouse_id)
+                        'owner_type' => 'warehouse',   // stok cabang
                         'owner_id'   => $it->warehouse_id,
                     ]);
 
@@ -120,6 +122,25 @@ class GRController extends Controller
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
+                    }
+
+                    // 2) KURANGI stok CENTRAL / PUSAT (owner_type = 'pusat')
+                    //    -> ini yang sebelumnya belum ada, jadi stok pusat nggak berkurang.
+                    $central = DB::table('stock_levels')
+                        ->where('product_id', $it->product_id)
+                        ->where('owner_type', 'pusat')
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($central) {
+                        $newQty = max(0, (int) $central->quantity - $good);
+
+                        DB::table('stock_levels')
+                            ->where('id', $central->id)
+                            ->update([
+                                'quantity'   => $newQty,
+                                'updated_at' => now(),
+                            ]);
                     }
                 }
             }
@@ -274,9 +295,7 @@ class GRController extends Controller
 
     /* ==========================================================
      *  REQUEST DELETE GR  (user gudang)
-     * ==========================================================
-     */
-
+     * ========================================================== */
     public function requestDelete(Request $request, RestockReceipt $receipt)
     {
         $data = $request->validate([
@@ -305,9 +324,7 @@ class GRController extends Controller
 
     /* ==========================================================
      *  APPROVAL DELETE GR (superadmin / purchasing)
-     * ==========================================================
-     */
-
+     * ========================================================== */
     public function processDeleteApproval(Request $request, GrDeleteRequest $grReq)
     {
         // boleh tambahkan gate/role check di sini

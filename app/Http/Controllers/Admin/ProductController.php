@@ -11,13 +11,14 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
     private string $codePrefix = 'PRD-';
 
-public function index()
+    public function index()
     {
         // data buat filter & form
         $categories = Category::select('id','category_name')
@@ -34,10 +35,10 @@ public function index()
 
         $nextProductCode = $this->generateNextCode();
 
-        // === SUMMARY: ambil langsung dari DB ===
-        $productCount  = Product::count();      // total baris di tabel products
-        $categoryCount = Category::count();     // total kategori
-        $supplierCount = Supplier::count();     // total supplier
+        // SUMMARY
+        $productCount  = Product::count();
+        $categoryCount = Category::count();
+        $supplierCount = Supplier::count();
 
         return view('admin.masterdata.products', compact(
             'categories',
@@ -60,65 +61,108 @@ public function index()
             $orderDir    = $request->input('order.0.dir', 'asc') === 'desc' ? 'desc' : 'asc';
             $search      = trim((string) $request->input('search.value', ''));
 
-            // ==== STOCK SEMENTARA: pakai MIN STOCK agar konsisten ====
-            // NOTE: Kalau mau pakai stock_levels nanti, ganti baris total_stock di select() di bawah:
-            // DB::raw('COALESCE(st.total_stock, COALESCE(p.stock_minimum,0)) AS total_stock')
-            // 1) Aktifkan subquery:
-//    $stockSub = DB::table('stock_levels as sl')
-//        ->selectRaw("sl.product_id, SUM(sl.quantity) AS total_stock")
-//        ->groupBy('sl.product_id');
-
-// 2) Join subquery dan ubah field ini:
-// DB::raw('COALESCE(st.total_stock, COALESCE(p.stock_minimum,0)) AS total_stock')
-
-
             $q = DB::table('products as p')
                 ->leftJoin('categories as c','c.id','=','p.category_id')
                 ->leftJoin('packages  as g','g.id','=','p.package_id')
-                ->leftJoin('suppliers as s','s.id','=','p.supplier_id')
-                ->select([
-                    'p.id','p.product_code','p.name',
-                    'p.category_id','p.package_id','p.supplier_id',
-                    'p.description','p.purchasing_price','p.selling_price','p.stock_minimum',
-                    DB::raw('COALESCE(p.stock_minimum,0) AS total_stock'), // <<— di sini
-                    'c.category_name',
-                    DB::raw('g.package_name AS package_name'),
-                    DB::raw('s.name AS supplier_name'),
-                ]);
+                ->leftJoin('suppliers as s','s.id','=','p.supplier_id');
 
+            // ====== JOIN STOK CENTRAL (owner_type = 'pusat') ======
+            $stockExpr = '0';
+            if (Schema::hasTable('stock_levels')) {
+                $stockSub = DB::table('stock_levels as sl')
+                    ->selectRaw('sl.product_id, SUM(sl.quantity) as qty_stock')
+                    ->where('sl.owner_type', 'pusat')
+                    ->groupBy('sl.product_id');
+
+                $q->leftJoinSub($stockSub, 'st', 'st.product_id', '=', 'p.id');
+                $stockExpr = 'COALESCE(st.qty_stock,0)';
+            }
+
+            $q->select([
+                'p.id',
+                'p.product_code',
+                'p.name',
+                'p.category_id',
+                'p.package_id',
+                'p.supplier_id',
+                'p.description',
+                'p.purchasing_price',
+                'p.selling_price',
+                'p.stock_minimum',
+                DB::raw("$stockExpr AS total_stock"),
+                'c.category_name',
+                DB::raw('g.package_name AS package_name'),
+                DB::raw('s.name AS supplier_name'),
+            ]);
+
+            // ====== SEARCH ======
             if ($search !== '') {
                 $q->where(function($w) use ($search){
-                    $w->where('p.product_code','like',"%{$search}%")
-                      ->orWhere('p.name','like',"%{$search}%")
-                      ->orWhere('c.category_name','like',"%{$search}%")
-                      ->orWhere('g.package_name','like',"%{$search}%")
-                      ->orWhere('s.name','like',"%{$search}%")
-                      ->orWhere('p.description','like',"%{$search}%");
+                    $like = "%{$search}%";
+                    $w->where('p.product_code','like',$like)
+                      ->orWhere('p.name','like',$like)
+                      ->orWhere('c.category_name','like',$like)
+                      ->orWhere('g.package_name','like',$like)
+                      ->orWhere('s.name','like',$like)
+                      ->orWhere('p.description','like',$like);
                 });
             }
 
+            // ====== ORDER MAP (sesuai index kolom DataTables) ======
+            // 0 = rownum
+            // 1 = product_code
+            // 2 = name
+            // 3 = category
+            // 4 = package (UOM)
+            // 5 = supplier
+            // 6 = description
+            // 7 = stock
+            // 8 = min_stock
+            // 9 = purchasing_price
+            // 10 = selling_price
+            // 11 = actions
             $orderMap = [
-                1 => 'p.product_code',
-                2 => 'p.name',
-                3 => 'c.category_name',
-                4 => 'g.package_name',
-                5 => 's.name',
-                6 => 'p.description',
-                7 => 'total_stock',
-                8 => 'p.purchasing_price',
-                9 => 'p.selling_price',
+                1  => 'p.product_code',
+                2  => 'p.name',
+                3  => 'c.category_name',
+                4  => 'g.package_name',
+                5  => 's.name',
+                6  => 'p.description',
+                7  => 'total_stock',
+                8  => 'p.stock_minimum',
+                9  => 'p.purchasing_price',
+                10 => 'p.selling_price',
             ];
             $orderCol = $orderMap[$orderColIdx] ?? 'p.product_code';
 
             $recordsTotal    = DB::table('products')->count();
             $recordsFiltered = (clone $q)->select('p.id')->distinct()->count('p.id');
 
-            if ($orderCol === 'total_stock') $q->orderByRaw('total_stock '.$orderDir);
-            else $q->orderBy($orderCol, $orderDir);
+            if ($orderCol === 'total_stock') {
+                $q->orderByRaw('total_stock '.$orderDir);
+            } else {
+                $q->orderBy($orderCol, $orderDir);
+            }
 
             $data = $q->offset($start)->limit($length)->get();
 
             $rows = $data->map(function($p,$i) use ($start){
+                $qty = max((int)($p->total_stock ?? 0), 0);
+                $min = (int)($p->stock_minimum ?? 0);
+
+                $isLow = $min > 0 && $qty <= $min;
+
+                $statusBadge = '-';
+                if ($min > 0) {
+                    $statusBadge = $isLow
+                        ? '<span class="badge bg-danger">LOW</span>'
+                        : '<span class="badge bg-success">OK</span>';
+                }
+
+                $stockHtml = $isLow
+                    ? '<span class="text-danger fw-bold">' . number_format($qty, 0, ',', '.') . '</span>'
+                    : number_format($qty, 0, ',', '.');
+
                 $actions = sprintf(
                     '<div class="d-flex gap-1">
                         <button class="btn btn-sm btn-icon btn-outline-secondary js-edit"
@@ -151,25 +195,29 @@ public function index()
                     'package'          => e($p->package_name ?? '-'),
                     'supplier'         => e($p->supplier_name ?? '-'),
                     'description'      => e(Str::limit($p->description ?? '-', 80)),
-                    'total_stock'      => number_format((int)$p->total_stock, 0, ',', '.'),
+                    'stock'            => $stockHtml,
+                    'min_stock'        => number_format($min, 0, ',', '.'),
                     'purchasing_price' => 'Rp'.number_format((int)$p->purchasing_price, 0, ',', '.'),
                     'selling_price'    => 'Rp'.number_format((int)$p->selling_price, 0, ',', '.'),
+                    'status'           => $statusBadge,
                     'actions'          => $actions,
                 ];
             });
 
             return response()->json([
-                'draw' => $draw,
-                'recordsTotal' => $recordsTotal,
+                'draw'            => $draw,
+                'recordsTotal'    => $recordsTotal,
                 'recordsFiltered' => $recordsFiltered,
-                'data' => $rows,
+                'data'            => $rows,
             ]);
         } catch (\Throwable $e) {
             Log::error('DT Products error: '.$e->getMessage());
             return response()->json([
-                'draw' => (int)$request->input('draw',1),
-                'recordsTotal' => 0, 'recordsFiltered' => 0, 'data' => [],
-                'error' => $e->getMessage(),
+                'draw'            => (int)$request->input('draw',1),
+                'recordsTotal'    => 0,
+                'recordsFiltered' => 0,
+                'data'            => [],
+                'error'           => $e->getMessage(),
             ], 500);
         }
     }
@@ -214,7 +262,20 @@ public function index()
             'stock_minimum'    => ['nullable','integer','min:0'],
         ]);
 
+        // Kunci harga beli & jual saat EDIT
+        $priceChanged = (
+            (int)$data['purchasing_price'] !== (int)$product->purchasing_price ||
+            (int)$data['selling_price']    !== (int)$product->selling_price
+        );
+
+        if ($priceChanged) {
+            return response()->json([
+                'error' => 'Harga beli & harga jual tidak bisa diubah dari sini. Silakan gunakan menu Adjustment untuk mengubah harga.',
+            ], 422);
+        }
+
         $product->update($data);
+
         return response()->json(['success' => 'Product updated successfully.']);
     }
 
@@ -233,11 +294,16 @@ public function index()
     {
         $prefix = $this->codePrefix;
         $latest = Product::where('product_code','like',$prefix.'%')
-            ->orderByRaw('CAST(SUBSTRING(product_code, '.(strlen($prefix)+1).') AS UNSIGNED) DESC')
+            ->orderByRaw(
+                'CAST(SUBSTRING(product_code, '.(strlen($prefix)+1).') AS UNSIGNED) DESC'
+            )
             ->value('product_code');
 
         $num = 0;
-        if ($latest && preg_match('/^'.preg_quote($prefix,'/').'(\d+)$/i',$latest,$m)) $num = (int)$m[1];
+        if ($latest && preg_match('/^'.preg_quote($prefix,'/').'(\d+)$/i',$latest,$m)) {
+            $num = (int)$m[1];
+        }
+
         return $prefix . str_pad($num + 1, 3, '0', STR_PAD_LEFT);
     }
 }

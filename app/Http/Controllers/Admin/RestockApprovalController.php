@@ -170,164 +170,180 @@ class RestockApprovalController extends Controller
     }
 
     // ====== BULK REVIEW → PO ======
-    public function bulkPO(Request $r)
-    {
-        $payloadIds = $r->input('ids', $r->input('stock_request_ids', []));
-        if (!is_array($payloadIds) || count($payloadIds) === 0) {
-            return response()->json(['error' => 'Pilih minimal satu request.'], 200);
-        }
+        public function bulkPO(Request $r)
+        {
+            $payloadIds = $r->input('ids', $r->input('stock_request_ids', []));
+            if (!is_array($payloadIds) || count($payloadIds) === 0) {
+                return response()->json(['error' => 'Pilih minimal satu request.'], 200);
+            }
 
-        $ids = collect($payloadIds)->map(fn($v)=>(int)$v)->filter()->unique()->values()->all();
-        if (empty($ids)) {
-            return response()->json(['error' => 'Data request tidak valid.'], 200);
-        }
+            $ids = collect($payloadIds)->map(fn($v) => (int)$v)->filter()->unique()->values()->all();
+            if (empty($ids)) {
+                return response()->json(['error' => 'Data request tidak valid.'], 200);
+            }
 
-        // request yang sudah punya PO → skip
-        $alreadyInPo = [];
-        if (
-            Schema::hasTable('purchase_order_items') &&
-            Schema::hasColumn('purchase_order_items','request_id')
-        ) {
-            $alreadyInPo = PurchaseOrderItem::whereIn('request_id',$ids)
-                ->pluck('request_id')
-                ->unique()
-                ->all();
-        }
+            // request yang sudah punya PO → skip
+            $alreadyInPo = [];
+            if (
+                Schema::hasTable('purchase_order_items') &&
+                Schema::hasColumn('purchase_order_items', 'request_id')
+            ) {
+                $alreadyInPo = PurchaseOrderItem::whereIn('request_id', $ids)
+                    ->pluck('request_id')
+                    ->unique()
+                    ->all();
+            }
 
-        $eligibleIds = array_diff($ids, $alreadyInPo);
-        if (empty($eligibleIds)) {
-            return response()->json([
-                'error' => 'Semua request terpilih sudah punya PO.'
-            ], 200);
-        }
+            $eligibleIds = array_diff($ids, $alreadyInPo);
+            if (empty($eligibleIds)) {
+                return response()->json([
+                    'error' => 'Semua request terpilih sudah punya PO.'
+                ], 200);
+            }
 
-        // hanya PENDING yang boleh dibuat PO
-        $requests = RequestRestock::with(['product','supplier','warehouse'])
-            ->whereIn('id',$eligibleIds)
-            ->where('status','pending')
-            ->get();
+            // hanya PENDING yang boleh dibuat PO
+            $requests = RequestRestock::with(['product', 'supplier', 'warehouse'])
+                ->whereIn('id', $eligibleIds)
+                ->where('status', 'pending')
+                ->get();
 
-        if ($requests->isEmpty()) {
-            return response()->json([
-                'error' => 'Tidak ada request berstatus pending.'
-            ], 200);
-        }
+            if ($requests->isEmpty()) {
+                return response()->json([
+                    'error' => 'Tidak ada request berstatus pending.'
+                ], 200);
+            }
 
-        $pendingIds    = $requests->pluck('id')->all();
-        $skippedStatus = array_diff($eligibleIds, $pendingIds);
-        $createdPoIds  = [];
+            $pendingIds    = $requests->pluck('id')->all();
+            $skippedStatus = array_diff($eligibleIds, $pendingIds);
+            $createdPoIds  = [];
 
-        try {
-            DB::transaction(function () use (&$createdPoIds, $requests) {
+            try {
+                DB::transaction(function () use (&$createdPoIds, $requests) {
 
-                // group per supplier (1 supplier = 1 PO)
-                $grouped = $requests->groupBy('supplier_id');
+                    // ======================================
+                    // GROUP PER WAREHOUSE (1 warehouse = 1 PO)
+                    // ======================================
+                    $grouped = $requests->groupBy(function ($rr) {
+                        return (int)($rr->warehouse_id ?? 0);
+                    });
 
-                foreach ($grouped as $supplierId => $rows) {
-                    $po = new PurchaseOrder();
-                    $po->supplier_id = $supplierId;
-                    $po->ordered_by  = auth()->id();
-                    $po->status      = 'draft';
+                    foreach ($grouped as $warehouseId => $rows) {
+                        /** @var \Illuminate\Support\Collection $rows */
+                        $first = $rows->first();
 
-                    $code = 'PO-'.now()->format('Ymd').'-'.str_pad(mt_rand(1,9999),4,'0',STR_PAD_LEFT);
-                    $po->po_code = $code;
+                        $po = new PurchaseOrder();
 
-                    $po->subtotal       = 0;
-                    $po->discount_total = 0;
-                    $po->grand_total    = 0;
-                    $po->save();
-
-                    $subtotal = 0;
-
-                    foreach ($rows as $rr) {
-                        $qty = (int) ($rr->quantity_requested
-                            ?? $rr->qty_requested
-                            ?? $rr->qty
-                            ?? 0);
-
-                        // harga ambil dari products.selling_price (kalau ada),
-                        // fallback ke request_restocks.cost_per_item
-                        $unitPrice = 0;
-                        if (Schema::hasColumn('products','selling_price') && $rr->product) {
-                            $unitPrice = (float) $rr->product->selling_price;
-                        } elseif (Schema::hasColumn('request_restocks','cost_per_item')) {
-                            $unitPrice = (float) ($rr->cost_per_item ?? 0);
+                        // header supplier → ambil dari request pertama (boleh diabaikan kalau nggak penting)
+                        if (Schema::hasColumn('purchase_orders', 'supplier_id')) {
+                            $po->supplier_id = $first->supplier_id ?? null;
                         }
 
-                        $lineTotal = $qty * $unitPrice;
-
-                        $item = $po->items()->create([
-                            'request_id'    => $rr->id,
-                            'product_id'    => $rr->product_id,
-                            'warehouse_id'  => $rr->warehouse_id ?? null,
-                            'qty_ordered'   => $qty,
-                            'qty_received'  => 0,
-                            'unit_price'    => $unitPrice,
-                            'discount_type' => null,
-                            'discount_value'=> 0,
-                            'line_total'    => $lineTotal,
-                        ]);
-
-                        $subtotal += $item->line_total;
-
-                        // update request jadi REVIEW/APPROVED
-                        $updateReq = [
-                            'status'     => 'approved',  // label REVIEW di UI
-                            'updated_at' => now(),
-                        ];
-                        if (Schema::hasColumn('request_restocks','approved_by')) {
-                            $updateReq['approved_by'] = auth()->id();
-                        }
-                        if (Schema::hasColumn('request_restocks','approved_at')) {
-                            $updateReq['approved_at'] = now();
-                        }
-                        if (Schema::hasColumn('request_restocks','quantity_requested')) {
-                            $updateReq['quantity_requested'] = $qty;
-                        }
-                        if (Schema::hasColumn('request_restocks','cost_per_item')) {
-                            $updateReq['cost_per_item'] = $unitPrice;
-                        }
-                        if (Schema::hasColumn('request_restocks','total_cost')) {
-                            $updateReq['total_cost'] = $lineTotal;
+                        if (Schema::hasColumn('purchase_orders', 'warehouse_id')) {
+                            $po->warehouse_id = $warehouseId ?: null;
                         }
 
-                        DB::table('request_restocks')
-                            ->where('id',$rr->id)
-                            ->update($updateReq);
+                        $po->ordered_by = auth()->id();
+                        $po->status     = 'draft';
+
+                        $code = 'PO-' . now()->format('Ymd') . '-' . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                        $po->po_code = $code;
+
+                        $po->subtotal       = 0;
+                        $po->discount_total = 0;
+                        $po->grand_total    = 0;
+                        $po->save();
+
+                        $subtotal = 0;
+
+                        foreach ($rows as $rr) {
+                            $qty = (int) ($rr->quantity_requested
+                                ?? $rr->qty_requested
+                                ?? $rr->qty
+                                ?? 0);
+
+                            // harga: pakai products.selling_price, fallback ke request_restocks.cost_per_item
+                            $unitPrice = 0;
+                            if (Schema::hasColumn('products', 'selling_price') && $rr->product) {
+                                $unitPrice = (float)$rr->product->selling_price;
+                            } elseif (Schema::hasColumn('request_restocks', 'cost_per_item')) {
+                                $unitPrice = (float)($rr->cost_per_item ?? 0);
+                            }
+
+                            $lineTotal = $qty * $unitPrice;
+
+                            $item = $po->items()->create([
+                                'request_id'    => $rr->id,
+                                'product_id'    => $rr->product_id,
+                                'warehouse_id'  => $rr->warehouse_id ?? ($warehouseId ?: null),
+                                'qty_ordered'   => $qty,
+                                'qty_received'  => 0,
+                                'unit_price'    => $unitPrice,
+                                'discount_type' => null,
+                                'discount_value'=> 0,
+                                'line_total'    => $lineTotal,
+                            ]);
+
+                            $subtotal += $item->line_total;
+
+                            // update status request → approved (label REVIEW di UI)
+                            $updateReq = [
+                                'status'     => 'approved',
+                                'updated_at' => now(),
+                            ];
+                            if (Schema::hasColumn('request_restocks', 'approved_by')) {
+                                $updateReq['approved_by'] = auth()->id();
+                            }
+                            if (Schema::hasColumn('request_restocks', 'approved_at')) {
+                                $updateReq['approved_at'] = now();
+                            }
+                            if (Schema::hasColumn('request_restocks', 'quantity_requested')) {
+                                $updateReq['quantity_requested'] = $qty;
+                            }
+                            if (Schema::hasColumn('request_restocks', 'cost_per_item')) {
+                                $updateReq['cost_per_item'] = $unitPrice;
+                            }
+                            if (Schema::hasColumn('request_restocks', 'total_cost')) {
+                                $updateReq['total_cost'] = $lineTotal;
+                            }
+
+                            DB::table('request_restocks')
+                                ->where('id', $rr->id)
+                                ->update($updateReq);
+                        }
+
+                        $po->subtotal       = $subtotal;
+                        $po->discount_total = 0;
+                        $po->grand_total    = $subtotal;
+                        $po->save();
+
+                        $createdPoIds[] = $po->id;
                     }
+                });
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'error' => 'Gagal membuat PO: ' . $e->getMessage()
+                ], 200);
+            }
 
-                    $po->subtotal       = $subtotal;
-                    $po->discount_total = 0;
-                    $po->grand_total    = $subtotal;
-                    $po->save();
+            $msg = 'PO dibuat dari request restock.';
+            if (!empty($alreadyInPo)) {
+                $msg .= ' Request yang sudah punya PO dilewati: ' . implode(', ', $alreadyInPo) . '.';
+            }
+            if (!empty($skippedStatus)) {
+                $msg .= ' Request dengan status bukan pending dilewati: ' . implode(', ', $skippedStatus) . '.';
+            }
 
-                    $createdPoIds[] = $po->id;
-                }
-            });
-        } catch (\Throwable $e) {
+            if (count($createdPoIds) === 1) {
+                return response()->json([
+                    'redirect' => route('po.edit', $createdPoIds[0]),
+                    'message'  => $msg,
+                ], 200);
+            }
+
             return response()->json([
-                'error' => 'Gagal membuat PO: '.$e->getMessage()
+                'redirect' => route('po.index'),
+                'message'  => $msg . ' Total PO: ' . count($createdPoIds) . '.',
             ], 200);
         }
 
-        $msg = 'PO dibuat dari request restock.';
-        if (!empty($alreadyInPo)) {
-            $msg .= ' Request yang sudah punya PO dilewati: '.implode(', ',$alreadyInPo).'.';
-        }
-        if (!empty($skippedStatus)) {
-            $msg .= ' Request dengan status bukan pending dilewati: '.implode(', ',$skippedStatus).'.';
-        }
-
-        if (count($createdPoIds) === 1) {
-            return response()->json([
-                'redirect' => route('po.edit', $createdPoIds[0]),
-                'message'  => $msg,
-            ], 200);
-        }
-
-        return response()->json([
-            'redirect' => route('po.index'),
-            'message'  => $msg.' Total PO: '.count($createdPoIds).'.',
-        ], 200);
-    }
 }

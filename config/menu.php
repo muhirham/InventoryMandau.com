@@ -3,134 +3,80 @@
 return [
 
     // ==== REGISTRY MENU (untuk checkbox & sidebar) ====
-    // key = unik; group = pengelompokan; route = nama route; icon = kelas Boxicons
     'items' => [
-        // ADMIN
+
+        // ================== INVENTORY ==================
         [
-            'key'   => 'warehouses',
-            'label' => 'Warehouses',
-            'route' => 'warehouses.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-buildings',
+            'key'   => 'products',
+            'label' => 'Products',
+            'route' => 'products.index',
+            'group' => 'inventory',
+            'icon'  => 'bx bx-cube-alt',
+        ],
+        [
+            'key'   => 'packages',
+            'label' => 'UOM',
+            'route' => 'packages.index',
+            'group' => 'inventory',
+            'icon'  => 'bx bx-package',
         ],
         [
             'key'   => 'categories',
             'label' => 'Categories',
             'route' => 'categories.index',
-            'group' => 'admin',
+            'group' => 'inventory',
             'icon'  => 'bx bx-category',
         ],
         [
             'key'   => 'suppliers',
             'label' => 'Suppliers',
             'route' => 'suppliers.index',
-            'group' => 'admin',
+            'group' => 'inventory',
             'icon'  => 'bx bx-store-alt',
         ],
         [
-            'key'   => 'packages',
-            'label' => 'UOM',
-            'route' => 'packages.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-package',
+            'key'   => 'stockproducts',
+            'label' => 'Stock Products',
+            'route' => 'stockproducts.index',   // nanti kamu isi routenya
+            'group' => 'inventory',
+            'icon'  => 'bx bx-archive',
         ],
         [
-            'key'   => 'products',
-            'label' => 'Products',
-            'route' => 'products.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-cube-alt',
-        ],
-        // key: stockproducts
-        [
-        'key'   => 'stockproducts',
-        'label' => 'Stock Products',
-        'route' => 'stockproducts.index',   
-        'group' => 'admin',
-        'icon'  => 'bx bx-archive',
-        ],
-
-                [
             'key'   => 'stock_adjustments',
             'label' => 'Stock Adjustments',
             'route' => 'stock-adjustments.index',
-            'group' => 'admin', // atau 'warehouse' kalau lu punya group itu
+            'group' => 'inventory',
             'icon'  => 'bx bx-adjust',
         ],
 
+        // ================== WAREHOUSE ==================
         [
-            'key'   => 'restock_request_ap',
-            'label' => 'Restock Approval',
-            'route' => 'stockRequest.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-transfer-alt',
+            'key'   => 'warehouses',
+            'label' => 'Warehouses',
+            'route' => 'warehouses.index',
+            'group' => 'warehouse',
+            'icon'  => 'bx bx-buildings',
         ],
-
-        [
-            'key'   => 'goodreceived',
-            'label' => 'Goods Received',
-            'route' => 'goodreceived.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-download',
-        ],
-                [
-            'key'   => 'goodreceived_delete',
-            'label' => 'GR Delete Requests',
-            'route' => 'goodreceived.delete-requests.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-trash',
-        ],
-
-        [
-            'key'   => 'po',
-            'label' => 'Purchase Orders',
-            'route' => 'po.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-receipt',
-        ],
-        [
-            'key'   => 'transactions',
-            'label' => 'Transactions',
-            'route' => 'transactions.index', // placeholder, nanti kalau ada modulnya
-            'group' => 'admin',
-            'icon'  => 'bx bx-transfer',
-        ],
-        [
-            'key'   => 'reports',
-            'label' => 'Reports',
-            'route' => 'reports.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-file',
-        ],
-        [
-            'key'   => 'users',
-            'label' => 'Users',
-            'route' => 'users.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-user',
-        ],
-        [
-            'key'   => 'roles',
-            'label' => 'Roles & Sidebar',
-            'route' => 'roles.index',
-            'group' => 'admin',
-            'icon'  => 'bx bx-shield-quarter',
-        ],
-
-        // WAREHOUSE
         [
             'key'   => 'wh_stocklevel',
             'label' => 'Stock Gudang',
-            'route' => 'stocklevel.index', // perbaikan dari StockLevel.index
+            'route' => 'stocklevel.index',
             'group' => 'warehouse',
             'icon'  => 'bx bx-layer',
         ],
         [
-            'key'   => 'wh_restock',
-            'label' => 'Restock Request',
-            'route' => 'restocks.index',
+            'key'   => 'goodreceived',
+            'label' => 'Goods Received',
+            'route' => 'goodreceived.index',
             'group' => 'warehouse',
-            'icon'  => 'bx bx-cart-add',
+            'icon'  => 'bx bx-download',
+        ],
+        [
+            'key'   => 'goodreceived_delete',
+            'label' => 'GR Delete Requests',
+            'route' => 'goodreceived.delete-requests.index',
+            'group' => 'warehouse',
+            'icon'  => 'bx bx-trash',
         ],
         [
             'key'   => 'wh_issue',
@@ -149,12 +95,35 @@ return [
         [
             'key'   => 'wh_sales_reports',
             'label' => 'Sales Reports',
-            'route' => 'sales.report', // disamakan dengan route sales.report
+            'route' => 'sales.report',
             'group' => 'warehouse',
             'icon'  => 'bx bx-bar-chart-alt-2',
         ],
 
-        // SALES
+        // ================== PROCUREMENT ==================
+        [
+            'key'   => 'wh_restock', // Request Restock Adm WH (view warehouse)
+            'label' => 'Request Restock Admin WH',
+            'route' => 'restocks.index',
+            'group' => 'procurement',
+            'icon'  => 'bx bx-cart-add',
+        ],
+        [
+            'key'   => 'restock_request_ap',
+            'label' => 'Approval Restock',
+            'route' => 'stockRequest.index',
+            'group' => 'procurement',
+            'icon'  => 'bx bx-transfer-alt',
+        ],
+        [
+            'key'   => 'po',
+            'label' => 'Purchase Orders',
+            'route' => 'po.index',
+            'group' => 'procurement',
+            'icon'  => 'bx bx-receipt',
+        ],
+
+        // ================== SALES ==================
         [
             'key'   => 'sales_daily',
             'label' => 'Daily Report',
@@ -169,13 +138,48 @@ return [
             'group' => 'sales',
             'icon'  => 'bx bx-undo',
         ],
+
+        // ================== REPORT / TRANSACTIONS ==================
+        [
+            'key'   => 'transactions',
+            'label' => 'Transactions',
+            'route' => 'transactions.index', // masih placeholder
+            'group' => 'reports',
+            'icon'  => 'bx bx-transfer',
+        ],
+        [
+            'key'   => 'reports',
+            'label' => 'Reports',
+            'route' => 'reports.index',
+            'group' => 'reports',
+            'icon'  => 'bx bx-file',
+        ],
+
+        // ================== MASTER DATA ==================
+        [
+            'key'   => 'users',
+            'label' => 'Users',
+            'route' => 'users.index',
+            'group' => 'master',
+            'icon'  => 'bx bx-user',
+        ],
+        [
+            'key'   => 'roles',
+            'label' => 'Roles & Sidebar',
+            'route' => 'roles.index',
+            'group' => 'master',
+            'icon'  => 'bx bx-shield-quarter',
+        ],
     ],
 
-    // ==== LABEL GROUP UNTUK SIDEBAR ====
+    // ==== LABEL & ICON GRUP UNTUK DROPDOWN PARENT ====
     'groups' => [
-        'admin'     => 'Admin',
-        'warehouse' => 'Warehouse',
-        'sales'     => 'Sales',
+        'inventory'   => ['label' => 'Inventory',   'icon' => 'bx bx-box'],
+        'warehouse'   => ['label' => 'Warehouse',   'icon' => 'bx bx-buildings'],
+        'procurement' => ['label' => 'Procurement', 'icon' => 'bx bx-cart'],
+        'sales'       => ['label' => 'Sales',       'icon' => 'bx bx-line-chart'],
+        'reports'     => ['label' => 'Reports',     'icon' => 'bx bx-file'],
+        'master'      => ['label' => 'Master Data', 'icon' => 'bx bx-slider-alt'],
     ],
 
     // ==== OPSI TETAP untuk Home Route combobox ====

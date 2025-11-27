@@ -20,6 +20,9 @@ class RoleController extends Controller
         // group untuk render checkbox di view
         $groups = [
             'admin'     => $registry->where('group', 'admin')->values(),
+            'inventory'     => $registry->where('group', 'inventory')->values(),
+            'procurement'     => $registry->where('group', 'procurement')->values(),
+            'master'     => $registry->where('group', 'master')->values(),
             'warehouse' => $registry->where('group', 'warehouse')->values(),
             'sales'     => $registry->where('group', 'sales')->values(),
         ];

@@ -95,8 +95,28 @@
             <div class="row g-4">
                 {{-- ADMIN --}}
                 <div class="col-md-4">
-                <div class="fw-semibold mb-2">Admin</div>
-                @foreach($groups['admin'] as $it)
+                <div class="fw-semibold mb-2">inventory</div>
+                @foreach($groups['inventory'] as $it)
+                    <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="menu_keys[]"
+                            value="{{ $it['key'] }}" id="add_{{ $it['key'] }}">
+                    <label for="add_{{ $it['key'] }}" class="form-check-label">{{ $it['label'] }}</label>
+                    </div>
+                @endforeach
+                </div>
+                <div class="col-md-4">
+                <div class="fw-semibold mb-2">procurement</div>
+                @foreach($groups['procurement'] as $it)
+                    <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="menu_keys[]"
+                            value="{{ $it['key'] }}" id="add_{{ $it['key'] }}">
+                    <label for="add_{{ $it['key'] }}" class="form-check-label">{{ $it['label'] }}</label>
+                    </div>
+                @endforeach
+                </div>
+                <div class="col-md-4">
+                <div class="fw-semibold mb-2">master</div>
+                @foreach($groups['master'] as $it)
                     <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="menu_keys[]"
                             value="{{ $it['key'] }}" id="add_{{ $it['key'] }}">
@@ -172,9 +192,32 @@
             </div>
 
             <div class="row g-4">
+
                 <div class="col-md-4">
-                <div class="fw-semibold mb-2">Admin</div>
-                @foreach($groups['admin'] as $it)
+                <div class="fw-semibold mb-2">inventory</div>
+                @foreach($groups['inventory'] as $it)
+                    <div class="form-check">
+                    <input class="form-check-input edit-check" type="checkbox" name="menu_keys[]"
+                            value="{{ $it['key'] }}" id="edit_{{ $it['key'] }}">
+                    <label for="edit_{{ $it['key'] }}" class="form-check-label">{{ $it['label'] }}</label>
+                    </div>
+                @endforeach
+
+                </div>
+                <div class="col-md-4">
+                <div class="fw-semibold mb-2">procurement</div>
+                @foreach($groups['procurement'] as $it)
+                    <div class="form-check">
+                    <input class="form-check-input edit-check" type="checkbox" name="menu_keys[]"
+                            value="{{ $it['key'] }}" id="edit_{{ $it['key'] }}">
+                    <label for="edit_{{ $it['key'] }}" class="form-check-label">{{ $it['label'] }}</label>
+                    </div>
+                @endforeach
+
+                </div>
+                <div class="col-md-4">
+                <div class="fw-semibold mb-2">master</div>
+                @foreach($groups['master'] as $it)
                     <div class="form-check">
                     <input class="form-check-input edit-check" type="checkbox" name="menu_keys[]"
                             value="{{ $it['key'] }}" id="edit_{{ $it['key'] }}">

@@ -3,15 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Concerns\FiltersByWarehouse;   // <- IMPORT TRAIT
+use App\Models\Concerns\FiltersByWarehouse;
 
 class RequestRestock extends Model
 {
-    use FiltersByWarehouse;                   // <- PAKAI TRAIT
+    use FiltersByWarehouse;
 
     protected $table = 'request_restocks';
 
     protected $fillable = [
+        'code',                // <-- tambahin ini
         'supplier_id',
         'product_id',
         'warehouse_id',
@@ -36,7 +37,7 @@ class RequestRestock extends Model
         'received_at'        => 'datetime',
     ];
 
-    // Relasi
+    // Relasi...
     public function product()
     {
         return $this->belongsTo(Product::class);

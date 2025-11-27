@@ -8,6 +8,8 @@ class StockAdjustment extends Model
 {
     protected $fillable = [
         'adj_code',
+        'stock_scope_mode',
+        'price_update_mode',
         'warehouse_id',
         'adj_date',
         'notes',

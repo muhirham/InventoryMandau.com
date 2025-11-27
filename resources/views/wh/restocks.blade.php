@@ -187,120 +187,145 @@
 </div>
 
 
-{{-- ========== MODAL RECEIVE BARANG (SIMPLE, TANPA SUMMARY) ========== --}}
-<div class="modal fade" id="mdlReceive" tabindex="-1" aria-hidden="true">
+
+{{-- ========== MODAL RECEIVE BARANG (MULTI ITEM) ========== --}}
+  <div class="modal fade" id="mdlReceive" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-1">
+          <div>
+            <h5 class="modal-title fw-bold mb-0">
+              Tanda Terima Barang Restock (GR)
+            </h5>
+            <div class="small text-muted">
+              Kode Restock: <span id="rcvCode">-</span> ·
+              <span id="rcvWarehouse">-</span> ·
+              <span id="rcvRequester">-</span>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <form id="formReceive" method="POST" enctype="multipart/form-data">
+          @csrf
+          <div class="modal-body pt-0">
+
+            {{-- TABEL INPUT GR MULTI ITEM --}}
+            <div class="mb-3">
+              <table class="table table-sm table-bordered mb-0" id="tblReceiveItems">
+                <thead class="table-light">
+                  <tr class="text-center">
+                    <th style="width:40px;">#</th>
+                    <th>Product</th>
+                    <th>Supplier</th>
+                    <th style="width:110px;">Qty Requested</th>
+                    <th style="width:130px;">Qty Received (sebelumnya)</th>
+                    <th style="width:110px;">Qty Remaining</th>
+                    <th style="width:110px;">Qty Good</th>
+                    <th style="width:120px;">Qty Damaged</th>
+                    <th style="width:160px;">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{-- akan diisi via JS dari /restocks/{id}/items --}}
+                </tbody>
+              </table>
+              <small class="text-muted">
+                Untuk item yang tidak diterima, biarkan Qty Good dan Qty Damaged = 0.
+                Qty Good + Qty Damaged per baris tidak boleh lebih besar dari <strong>Qty Remaining</strong>.
+              </small>
+            </div>
+
+            {{-- FOTO BARANG GOOD --}}
+            <div class="mb-3">
+              <label class="form-label text-uppercase small fw-semibold">
+                Upload Foto Barang Bagus (opsional)
+              </label>
+              <input type="file" name="photos_good[]" class="form-control" multiple accept="image/*">
+              <div class="form-text">
+                Maks 4MB per file. Foto akan dikaitkan ke dokumen GR ini.
+              </div>
+            </div>
+
+            {{-- FOTO BARANG RUSAK --}}
+            <div class="mb-3">
+              <label class="form-label text-uppercase small fw-semibold">
+                Upload Foto Barang Rusak (opsional)
+              </label>
+              <input type="file" name="photos_damaged[]" class="form-control" multiple accept="image/*">
+              <div class="form-text">
+                Jika ada kerusakan, lampirkan foto detail kerusakan.
+              </div>
+            </div>
+
+          </div>
+
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+            <button type="submit" class="btn btn-primary">Simpan Goods Received</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+{{-- ========== MODAL DETAIL REQUEST (SEMUA ITEM 1 RR) ========== --}}
+<div class="modal fade" id="mdlDetail" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header border-0 pb-1">
         <div>
-          <h5 class="modal-title fw-bold mb-0">
-            Tanda Terima Barang Restock (GR)
-          </h5>
+          <h5 class="modal-title fw-bold mb-0">Detail Request Restock</h5>
           <div class="small text-muted">
-            Kode Restock: <span id="rcvCode">-</span>
+            No. Dokumen: <span id="detCode">-</span>
           </div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
 
-      <form id="formReceive" method="POST" enctype="multipart/form-data">
-        @csrf
-        <div class="modal-body pt-0">
-
-          {{-- TABEL INPUT GR --}}
-          <div class="mb-3">
-            <table class="table table-sm table-bordered mb-0">
-              <thead class="table-light">
-                <tr class="text-center">
-                  <th style="width:40px;">#</th>
-                  <th>Product</th>
-                  <th>Supplier</th>
-                  <th style="width:110px;">Qty Requested</th>
-                  <th style="width:130px;">Qty Received (sebelumnya)</th>
-                  <th style="width:110px;">Qty Remaining</th>
-                  <th style="width:110px;">Qty Good</th>
-                  <th style="width:120px;">Qty Damaged</th>
-                  <th style="width:160px;">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td class="text-center">1</td>
-                  <td>
-                    <span id="rcvProductRow">-</span><br>
-                    <small class="text-muted" id="rcvProductCodeRow"></small>
-                  </td>
-                  <td>
-                    <span id="rcvSupplierRow">-</span>
-                  </td>
-                  <td class="text-center">
-                    <span id="tblQtyReq">0</span>
-                  </td>
-                  <td class="text-center">
-                    <span id="tblQtyRcvBefore">0</span>
-                  </td>
-                  <td class="text-center fw-semibold">
-                    <span id="tblQtyRemaining">0</span>
-                  </td>
-                  <td>
-                    <input type="number" min="0" value="0"
-                           name="qty_good"
-                           class="form-control form-control-sm text-end"
-                           id="inpQtyGood" required>
-                  </td>
-                  <td>
-                    <input type="number" min="0" value="0"
-                           name="qty_damaged"
-                           class="form-control form-control-sm text-end"
-                           id="inpQtyDamaged">
-                  </td>
-                  <td>
-                    <input type="text"
-                           name="notes"
-                           class="form-control form-control-sm"
-                           placeholder="Catatan penerimaan (opsional)">
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <small class="text-muted">
-              Qty Good + Qty Damaged tidak boleh lebih besar dari
-              <strong>Qty Remaining</strong>.
-            </small>
-          </div>
-
-          {{-- FOTO BARANG GOOD --}}
-          <div class="mb-3">
-            <label class="form-label text-uppercase small fw-semibold">
-              Upload Foto Barang Bagus (opsional)
-            </label>
-            <input type="file" name="photos_good[]" class="form-control" multiple accept="image/*">
-            <div class="form-text">
-              Upload foto barang dalam kondisi baik (mis. tampilan karton, isi, dsb). Maks 8MB per file.
+      <div class="modal-body pt-0">
+        {{-- HEADER --}}
+        <div class="border rounded p-3 mb-3">
+          <div class="row">
+            <div class="col-md-6">
+              <div><strong>Warehouse</strong> : <span id="detWarehouse">-</span></div>
+              <div><strong>Tanggal</strong> : <span id="detDate">-</span></div>
+            </div>
+            <div class="col-md-6">
+              <div><strong>Requester</strong> : <span id="detRequester">-</span></div>
+              <div><strong>Status</strong> : <span id="detStatus">-</span></div>
+              <div><strong>Jumlah Item</strong> : <span id="detTotalItems">0</span></div>
             </div>
           </div>
-
-          {{-- FOTO BARANG RUSAK --}}
-          <div class="mb-3">
-            <label class="form-label text-uppercase small fw-semibold">
-              Upload Foto Barang Rusak (opsional)
-            </label>
-            <input type="file" name="photos_damaged[]" class="form-control" multiple accept="image/*">
-            <div class="form-text">
-              Jika ada kerusakan, lampirkan foto detail kerusakan. Maks 8MB per file.
-            </div>
-          </div>
-
         </div>
 
-        <div class="modal-footer border-0">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary">Simpan Goods Received</button>
+        {{-- TABEL ITEM --}}
+        <div class="table-responsive">
+          <table class="table table-bordered align-middle" id="tblDetailItems">
+            <thead class="table-light">
+              <tr class="text-center">
+                <th style="width:40px;">No.</th>
+                <th>Product</th>
+                <th>Supplier</th>
+                <th style="width:110px;">Qty Requested</th>
+                <th style="width:110px;">Qty Received</th>
+                <th style="width:110px;">Qty Remaining</th>
+                <th style="width:160px;">Note</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
-      </form>
+
+      </div>
+
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
+      </div>
     </div>
   </div>
 </div>
+
 
 @endsection
 
@@ -323,6 +348,58 @@
 <script>
 $(function () {
   const dtUrl = @json(route('restocks.datatable'));
+  const detailBaseUrl = @json(url('/restocks'));  
+
+    // ========= DETAIL RR (SEMUA ITEM) =========
+  $(document).on('click', '.js-detail', function () {
+    const btn = $(this);
+    const id  = btn.data('id');
+    const codeFromRow = btn.data('code') || '-';
+
+    const url = detailBaseUrl + '/' + id + '/items';
+
+    $.getJSON(url, function (res) {
+      if (res.status !== 'ok') {
+        alert(res.message || 'Gagal memuat detail');
+        return;
+      }
+
+      const h = res.header || {};
+
+      $('#detCode').text(h.code || codeFromRow);
+      $('#detWarehouse').text(h.warehouse || '-');
+      $('#detDate').text(h.request_date || '-');
+      $('#detRequester').text(h.requester || '-');
+      $('#detStatus').text(h.status || '-');
+      $('#detTotalItems').text(h.total_items || 0);
+
+      const tbody = $('#tblDetailItems tbody');
+      tbody.empty();
+
+      (res.items || []).forEach((item, idx) => {
+        tbody.append(`
+          <tr>
+            <td class="text-center">${idx + 1}</td>
+            <td>
+              <div class="fw-semibold">${item.product ?? '-'}</div>
+              <div class="small text-muted">${item.product_code ?? ''}</div>
+            </td>
+            <td>${item.supplier ?? '-'}</td>
+            <td class="text-center">${item.qty_req}</td>
+            <td class="text-center">${item.qty_rcv}</td>
+            <td class="text-center">${item.qty_remaining}</td>
+            <td>${item.note ?? '-'}</td>
+          </tr>
+        `);
+      });
+
+      const modal = new bootstrap.Modal(document.getElementById('mdlDetail'));
+      modal.show();
+    }).fail(function () {
+      alert('Gagal memuat detail');
+    });
+  });
+
 
   const table = $('#tblRestocks').DataTable({
     processing: true,
@@ -366,46 +443,82 @@ $(function () {
   });
 
   // ========= HANDLE RECEIVE BUTTON =========
+    // ========= HANDLE RECEIVE BUTTON (MULTI ITEM) =========
   $(document).on('click', '.js-receive', function () {
     const btn = $(this);
+    const id  = btn.data('id');
+    const codeFromRow = btn.data('code') || '-';
 
-    const code        = btn.data('code')          || '-';
-    const product     = btn.data('product')       || '-';
-    const productCode = btn.data('product_code')  || '';
-    const supplier    = btn.data('supplier')      || '-';
+    const url = detailBaseUrl + '/' + id + '/items';
 
-    const qtyReq  = parseInt(btn.data('qty_req')) || 0;
-    const qtyRcv  = parseInt(btn.data('qty_rcv')) || 0;
-    const qtyRemAttr = btn.data('qty_remaining') ?? btn.data('qty_rem');
-    const qtyRem = qtyRemAttr !== undefined
-      ? (parseInt(qtyRemAttr) || 0)
-      : Math.max(qtyReq - qtyRcv, 0);
+    $.getJSON(url, function (res) {
+      if (res.status !== 'ok') {
+        alert(res.message || 'Gagal memuat data penerimaan');
+        return;
+      }
 
-    // set header kecil
-    $('#rcvCode').text(code);
+      const h = res.header || {};
 
-    // isi row
-    $('#rcvProductRow').text(product);
-    $('#rcvProductCodeRow').text(productCode);
-    $('#rcvSupplierRow').text(supplier);
-    $('#tblQtyReq').text(qtyReq);
-    $('#tblQtyRcvBefore').text(qtyRcv);
-    $('#tblQtyRemaining').text(qtyRem);
+      $('#rcvCode').text(h.code || codeFromRow);
+      $('#rcvWarehouse').text(h.warehouse || '-');
+      $('#rcvRequester').text(h.requester || '-');
 
-    // default input (maksimal = qty remaining)
-    $('#inpQtyGood').attr('max', qtyRem).val(qtyRem);
-    $('#inpQtyDamaged').attr('max', qtyRem).val(0);
+      const tbody = $('#tblReceiveItems tbody');
+      tbody.empty();
 
-    // set action ke route receive yg dikirim di data-action
-    $('#formReceive').attr('action', btn.data('action'));
+      (res.items || []).forEach((item, idx) => {
+        const qtyReq      = parseInt(item.qty_req) || 0;
+        const qtyRcv      = parseInt(item.qty_rcv) || 0;
+        const qtyRem      = parseInt(item.qty_remaining) || 0;
+        const maxAttr     = qtyRem > 0 ? qtyRem : 0;
+        const productName = item.product ?? '-';
+        const productCode = item.product_code ?? '';
+        const supplier    = item.supplier ?? '-';
 
-    // reset file & notes
-    $('#formReceive').find('input[type="file"]').val('');
-    $('#formReceive').find('input[name="notes"]').val('');
+        tbody.append(`
+          <tr data-id="${item.id}">
+            <td class="text-center">${idx + 1}</td>
+            <td>
+              <div class="fw-semibold">${productName}</div>
+              <div class="small text-muted">${productCode}</div>
+            </td>
+            <td>${supplier}</td>
+            <td class="text-center">${qtyReq}</td>
+            <td class="text-center">${qtyRcv}</td>
+            <td class="text-center">${qtyRem}</td>
+            <td>
+              <input type="number" min="0" max="${maxAttr}" value="${maxAttr}"
+                     name="items[${item.id}][qty_good]"
+                     class="form-control form-control-sm text-end">
+            </td>
+            <td>
+              <input type="number" min="0" max="${maxAttr}" value="0"
+                     name="items[${item.id}][qty_damaged]"
+                     class="form-control form-control-sm text-end">
+            </td>
+            <td>
+              <input type="text"
+                     name="items[${item.id}][notes]"
+                     class="form-control form-control-sm"
+                     placeholder="Catatan (opsional)">
+            </td>
+          </tr>
+        `);
+      });
 
-    const modal = new bootstrap.Modal(document.getElementById('mdlReceive'));
-    modal.show();
+      // set action ke route receive yg dikirim di data-action
+      $('#formReceive').attr('action', btn.data('action'));
+
+      // reset file
+      $('#formReceive').find('input[type="file"]').val('');
+
+      const modal = new bootstrap.Modal(document.getElementById('mdlReceive'));
+      modal.show();
+    }).fail(function () {
+      alert('Gagal memuat data penerimaan.');
+    });
   });
+
 
   // ========= MULTI ITEM RF =========
   let nextRfIndex = 1;

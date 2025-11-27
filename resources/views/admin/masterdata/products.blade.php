@@ -9,7 +9,6 @@
   .swal2-container { z-index: 20000 !important; }
 
   #tblProducts{ width:100% !important; font-size:0.875rem; }
-  /* header tetap 1 baris, isi boleh turun ke bawah */
   #tblProducts th{ white-space:nowrap; }
   #tblProducts td{ white-space:normal; }
 </style>
@@ -20,7 +19,7 @@
   <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
     <div>
       <h4 class="mb-1">Products</h4>
-      <p class="mb-0 text-muted">Kelola daftar produk, kategori, dan supplier untuk seluruh warehouse.</p>
+      <p class="mb-0 text-muted">Kelola daftar produk, stok pusat, kategori, dan supplier.</p>
     </div>
     <div class="ms-auto">
       <button class="btn btn-primary d-flex align-items-center gap-1"
@@ -131,7 +130,6 @@
   {{-- TABEL PRODUK --}}
   <div class="card">
     <div class="card-body p-0">
-      {{-- HAPUS .table-responsive supaya nggak dipaksa scroll ke samping --}}
       <table id="tblProducts" class="table table-hover align-middle mb-0 table-bordered">
         <thead class="table-light">
         <tr>
@@ -142,7 +140,9 @@
           <th>UOM</th>
           <th>SUPPLIER</th>
           <th>DESCRIPTION</th>
+          <th class="text-end">STOCK</th>
           <th class="text-end">MIN STOCK</th>
+          <th>STATUS</th>
           <th class="text-end">PURCHASING</th>
           <th class="text-end">SELLING</th>
           <th style="width: 110px">ACTIONS</th>
@@ -227,6 +227,10 @@
             <label class="form-label">Selling Price</label>
             <input type="number" name="selling_price" id="selling_price"
                    class="form-control" value="0" min="0">
+            <small class="text-muted small d-none" id="priceEditNote">
+              Harga beli &amp; harga jual tidak bisa diubah di sini.
+              Gunakan menu <strong>Adjustment</strong> untuk mengubah harga.
+            </small>
           </div>
 
           <div class="col-md-4">
@@ -273,12 +277,12 @@ $(function () {
     pagingType: "simple_numbers",
     responsive: {
       details: {
-        type: 'inline'   // klik baris buat lihat kolom yang disembunyikan di layar kecil
+        type: 'inline'
       }
     },
     columnDefs: [
-      { responsivePriority: 1, targets: [1,2] },      // CODE & NAME paling penting
-      { responsivePriority: 2, targets: -1 }          // ACTIONS jangan gampang disembunyiin
+      { responsivePriority: 1, targets: [1,2] },
+      { responsivePriority: 2, targets: -1 }
     ],
     columns: [
       { data: 'rownum',           orderable:false, searchable:false },
@@ -288,7 +292,9 @@ $(function () {
       { data: 'package' },
       { data: 'supplier' },
       { data: 'description' },
-      { data: 'total_stock',      className:'text-end' },
+      { data: 'stock',            className:'text-end' },
+      { data: 'min_stock',        className:'text-end' },
+      { data: 'status',           orderable:false, searchable:false },
       { data: 'purchasing_price', className:'text-end' },
       { data: 'selling_price',    className:'text-end' },
       { data: 'actions',          orderable:false, searchable:false }
@@ -315,6 +321,7 @@ $(function () {
     this.value = this.value.toUpperCase();
   });
 
+  // ==== MODE ADD PRODUCT ====
   $('#btnShowAdd').on('click', function () {
     $('#modalTitle').text('Add Product');
     $('#formProduct').attr('action', baseUrl);
@@ -323,11 +330,15 @@ $(function () {
     $('#formProduct').trigger('reset');
     $('#category_id, #package_id, #supplier_id').val('');
 
+    $('#purchasing_price, #selling_price').prop('readonly', false);
+    $('#priceEditNote').addClass('d-none');
+
     $.get(nextCodeUrl, function (res) {
       $('#product_code').val(res?.next_code || $('#product_code').data('default'));
     });
   });
 
+  // SUBMIT FORM (add / update)
   $('#formProduct').on('submit', function (e) {
     e.preventDefault();
     const fd = new FormData(this);
@@ -361,6 +372,7 @@ $(function () {
     });
   });
 
+  // ==== MODE EDIT PRODUCT ====
   $(document).on('click', '.js-edit', function () {
     const d = $(this).data();
 
@@ -379,9 +391,21 @@ $(function () {
     $('#selling_price').val(d.selling_price);
     $('#stock_minimum').val(d.stock_minimum || '');
 
+    $('#purchasing_price, #selling_price').prop('readonly', true);
+    $('#priceEditNote').removeClass('d-none');
+
+    Swal.fire({
+      icon: 'info',
+      title: 'Harga tidak bisa diubah',
+      text: 'Harga beli dan harga jual tidak dapat di-edit dari sini. Silakan gunakan menu Adjustment.',
+      timer: 2500,
+      showConfirmButton: false
+    });
+
     $('#mdlProduct').modal('show');
   });
 
+  // DELETE PRODUCT
   $(document).on('click', '.js-del', function () {
     const id = $(this).data('id');
 
